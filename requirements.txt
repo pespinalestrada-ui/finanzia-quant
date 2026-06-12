@@ -1,0 +1,37 @@
+# --- Core ---
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.8
+seaborn>=0.13
+
+# --- Datos financieros ---
+yfinance>=0.2.40
+pandas-datareader>=0.10
+
+# --- Forecast clásico ---
+prophet>=1.1
+holidays>=0.45
+
+# --- AutoML (módulo 6-7) ---
+pycaret[full]>=3.3
+lightgbm>=4.0
+catboost>=1.2
+
+# --- EDA / visualización (lo que ya usas) ---
+dataprep>=0.4
+pygwalker>=0.4
+dtale>=3.0
+
+# --- MLOps (módulo 8) ---
+mlflow>=2.8.1
+
+# --- GenAI / agentes (módulos 9-10) ---
+smolagents>=1.0
+transformers>=4.40
+torch>=2.0
+
+# --- UI (módulo 8) ---
+gradio>=4.0
+
+# --- Forecast GenAI (módulo 10) ---
+chronos-forecasting>=1.0

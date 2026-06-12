@@ -1,0 +1,23 @@
+# datos y artefactos generados
+data/
+mlruns/
+*.csv
+*.png
+*.html
+*.pkl
+
+# diario personal de trading (nunca publicar)
+operaciones.csv
+
+# python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# node
+node_modules/
+
+# secretos (por si acaso)
+.env
+*.token
+*_token*

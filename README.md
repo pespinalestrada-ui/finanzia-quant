@@ -32,7 +32,9 @@ modelizar los hitos de la OPA como *holidays* y añadir regresores macro
 | Herramienta | Qué hace |
 |-------------|----------|
 | `dashboard/` | **UI web única con todo** (12 pestañas, Gradio) |
-| `indicators/` | RSI, MACD, Bollinger, ATR, SMA + señal actual |
+| `indicators/` | 11 indicadores: RSI, MACD, Bollinger, ATR, SMA, Estocástico, Williams %R, CCI, ADX, OBV, MFI |
+| `lstm_forecast/` | Forecast con red neuronal LSTM (PyTorch) |
+| `neuralprophet_forecast/` | Forecast con NeuralProphet (AR-Net + estacionalidad) |
 | `screener/` | Ranking de watchlist por momentum/tendencia |
 | `signal_scanner/` | Señales accionables: cruces, RSI extremo, breakouts |
 | `backtester/` | Backtest SMA/RSI/Bollinger vs buy & hold |

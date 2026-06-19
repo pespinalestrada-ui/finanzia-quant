@@ -31,7 +31,8 @@ PROJ = SUITE.parent                       # raíz del proyecto
 for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "backtester", SUITE / "correlation", SUITE / "portfolio_optimizer",
           SUITE / "signal_scanner", SUITE / "sentiment", SUITE / "position_sizer",
-          SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context"]:
+          SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context",
+          SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -81,6 +82,23 @@ def tab_forecast(ticker, period, motor="Prophet (rápido)"):
                   f"{top}\n\n> Confianza por ancho de banda: <20% ALTA · 20-45% MEDIA · >45% BAJA. "
                   f"No es recomendación de inversión.")
             return fig, tabla, md
+        if str(motor).startswith("LSTM"):
+            import lstm_forecast as LF          # red neuronal, torch ya cargado
+            fig, tabla, meta = LF.forecast(ticker.strip().upper(), period, horizon=120)
+            md = (f"### {ticker.upper()} — Red neuronal LSTM (PyTorch)\n\n"
+                  f"Cierre {meta['precio_actual']:.3f} · {meta['n']} sesiones · error residual ~{meta['resid_pct']}%. "
+                  f"Red entrenada desde cero en cada consulta.\n\n"
+                  f"> Las redes recurrentes sobre precio tienden a 'seguir' el último valor; bandas "
+                  f"amplias = incertidumbre real. No es recomendación de inversión.")
+            return fig, tabla, md
+        if str(motor).startswith("NeuralProphet"):
+            import neuralprophet_forecast as NPF
+            fig, tabla, meta = NPF.forecast(ticker.strip().upper(), period, horizon=120, epochs=60)
+            md = (f"### {ticker.upper()} — NeuralProphet (AR-Net + estacionalidad)\n\n"
+                  f"Cierre {meta['precio_actual']:.3f} · {meta['n']} sesiones. Sucesor de Prophet sobre "
+                  f"PyTorch: interpretable + memoria autorregresiva.\n\n"
+                  f"> Confianza por ancho de banda 80%. No es recomendación de inversión.")
+            return fig, tabla, md
         fig, tabla, informe, meta = forecast_tool.forecast(ticker, period=period)
         head = f"**{ticker.upper()}** · {meta['n_sesiones']} sesiones · cierre {meta['precio_actual']:.3f}"
         return fig, tabla, head + "\n\n" + informe
@@ -92,18 +110,8 @@ def tab_forecast(ticker, period, motor="Prophet (rápido)"):
 def tab_indicadores(ticker, period):
     try:
         df = _dl(ticker, period)
-        c = df["Close"]
-        df["RSI"] = IND.rsi(c); df["MACD"], df["MACD_sig"], df["MACD_hist"] = IND.macd(c)
-        df["BB_mid"], df["BB_up"], df["BB_lo"] = IND.bollinger(c)
-        df["ATR"] = IND.atr(df); df["SMA50"] = c.rolling(50).mean(); df["SMA200"] = c.rolling(200).mean()
-        last = df.iloc[-1]; px = last["Close"]
-        tabla = pd.DataFrame([
-            ["RSI(14)", f"{last['RSI']:.1f}", "sobreventa" if last['RSI']<30 else "sobrecompra" if last['RSI']>70 else "neutral"],
-            ["MACD", f"{last['MACD']:.3f}/{last['MACD_sig']:.3f}", "alcista" if last['MACD']>last['MACD_sig'] else "bajista"],
-            ["Bollinger", f"[{last['BB_lo']:.2f},{last['BB_up']:.2f}]", "fuera" if (px>last['BB_up'] or px<last['BB_lo']) else "dentro"],
-            ["ATR(14)", f"{last['ATR']:.3f}", f"{last['ATR']/px*100:.1f}% vol"],
-            ["Tendencia", f"50/200", "ALCISTA" if last['SMA50']>last['SMA200'] else "BAJISTA"],
-        ], columns=["Indicador", "Valor", "Señal"])
+        df = IND.calcular_todos(df)             # 11 indicadores
+        tabla = pd.DataFrame(IND.señales_dict(df), columns=["Indicador", "Valor", "Señal"])
         d = df.iloc[-260:]
         fig, ax = plt.subplots(3, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios":[3,1,1]})
         ax[0].plot(d["Date"], d["Close"], "k", lw=1); ax[0].plot(d["Date"], d["BB_up"], "b--", lw=.6, alpha=.6)
@@ -468,7 +476,8 @@ def build():
             with gr.Row():
                 t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
                 p = gr.Dropdown(["2y","3y","5y","10y"], value="3y", label="Histórico")
-                motor = gr.Dropdown(["Prophet (rápido)", "AutoGluon (2 min, cuantiles)"],
+                motor = gr.Dropdown(["Prophet (rápido)", "LSTM (red neuronal)",
+                                     "NeuralProphet (AR-Net)", "AutoGluon (2 min, cuantiles)"],
                                     value="Prophet (rápido)", label="Motor")
                 b = gr.Button("Forecast", variant="primary")
             pl = gr.Plot(); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()

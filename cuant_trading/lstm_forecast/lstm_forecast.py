@@ -63,16 +63,7 @@ def _ventanas(serie, w):
     return np.array(X), np.array(y)
 
 
-def entrenar_predecir(df, horizon=120, window=30, epochs=120, hidden=32):
-    """Devuelve (fechas_futuras, yhat, banda_inf, banda_sup, resid_std_pct)."""
-    precios = df["y"].values.astype(np.float32)
-    pmin, pmax = precios.min(), precios.max()
-    scal = (precios - pmin) / (pmax - pmin + 1e-9)        # normalizar [0,1]
-
-    X, y = _ventanas(scal, window)
-    Xt = torch.tensor(X).unsqueeze(-1)                     # [N, W, 1]
-    yt = torch.tensor(y).unsqueeze(-1)                     # [N, 1]
-
+def _entrenar(Xt, yt, epochs, hidden):
     model = LSTM(hidden=hidden)
     opt = torch.optim.Adam(model.parameters(), lr=0.01)
     lossf = nn.MSELoss()
@@ -82,15 +73,44 @@ def entrenar_predecir(df, horizon=120, window=30, epochs=120, hidden=32):
         loss = lossf(model(Xt), yt)
         loss.backward()
         opt.step()
-
-    # residuos one-step sobre los últimos 90 (en escala precio) → banda
     model.eval()
-    with torch.no_grad():
-        pred_in = model(Xt).squeeze(-1).numpy()
-    real_in = y
-    n_hold = min(90, len(real_in))
-    resid = (pred_in[-n_hold:] - real_in[-n_hold:]) * (pmax - pmin)
-    resid_std = float(np.std(resid)) if len(resid) else 0.0
+    return model
+
+
+def entrenar_predecir(df, horizon=120, window=30, epochs=120, hidden=32):
+    """Devuelve (fechas_futuras, yhat, banda_inf, banda_sup, resid_std_pct).
+
+    Banda honesta: el escalado se ajusta SOLO con el tramo de entrenamiento (sin
+    look-ahead) y los residuos se miden FUERA DE MUESTRA (holdout no entrenado).
+    """
+    precios = df["y"].values.astype(np.float32)
+    n_hold = min(90, max(20, len(precios) // 6))          # holdout para residuos OOS
+    train_p = precios[:-n_hold]
+
+    # escalado ajustado SOLO con train (evita el leakage que detectó la revisión)
+    pmin, pmax = float(train_p.min()), float(train_p.max())
+    rng = (pmax - pmin) + 1e-9
+
+    # 1) modelo de validación: entrena solo con train, mide residuos en el holdout OOS
+    scal_tr = (train_p - pmin) / rng
+    Xtr, ytr = _ventanas(scal_tr, window)
+    resid_std = 0.0
+    if len(Xtr) > 10:
+        m_val = _entrenar(torch.tensor(Xtr).unsqueeze(-1), torch.tensor(ytr).unsqueeze(-1), epochs, hidden)
+        # predecir one-step sobre el holdout (ventanas que terminan en train y caen en holdout)
+        scal_full = (precios - pmin) / rng
+        Xall, yall = _ventanas(scal_full, window)
+        Xh = torch.tensor(Xall[-n_hold:]).unsqueeze(-1)
+        with torch.no_grad():
+            ph = m_val(Xh).squeeze(-1).numpy()
+        resid = (ph - yall[-n_hold:]) * rng               # error OOS en escala precio
+        resid_std = float(np.std(resid)) if len(resid) else 0.0
+
+    # 2) modelo final: reentrena con TODO el histórico (escalado del train) para el forecast
+    scal = (precios - pmin) / rng
+    X, y = _ventanas(scal, window)
+    Xt = torch.tensor(X).unsqueeze(-1); yt = torch.tensor(y).unsqueeze(-1)
+    model = _entrenar(Xt, yt, epochs, hidden)
 
     # forecast recursivo
     ventana = list(scal[-window:])

@@ -306,59 +306,125 @@ def tab_sizer(ticker, capital, riskpct, entry, stop, atr_mult):
 
 
 # ---- 10. Veredicto global (agregador) --------------------------------------
-def tab_veredicto(ticker, period, con_sentimiento):
+def _var90_de_tabla(tab):
+    """Saca la 'Variación %' del horizonte 90d de la tabla de cualquier motor."""
+    for _, r in tab.iterrows():
+        if "90" in str(r.get("Horizonte", "")):
+            return float(r["Variación %"])
+    return float(tab.iloc[min(1, len(tab) - 1)]["Variación %"])
+
+
+def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
     """
-    Corre todos los motores sobre un ticker y agrega en un veredicto
-    COMPRAR / MANTENER / VENDER. Cada pilar puntúa en [-1, +1] y pondera.
+    Agrega forecast (consenso multi-modelo opcional) + batería técnica completa
+    + volumen + sentimiento en un veredicto COMPRAR / MANTENER / VENDER.
+    Cada pilar puntúa en [-1, +1] y pondera. Adapta los motores a lo instalado.
     """
     try:
         ticker = ticker.strip().upper()
         pilares = []  # (nombre, lectura, score, peso)
+        notas_modelos = ""
 
-        # --- 1. Forecast Prophet 90d ponderado por su confianza (peso 0.30)
+        # --- 1. Forecast: Prophet siempre; consenso multi-modelo si se pide -----
         fig, tabla_fc, _informe, meta = forecast_tool.forecast(ticker, period=period)
-        f90 = tabla_fc.iloc[1]
-        var90 = float(f90["Variación %"])
-        conf_str = str(f90["Confianza"])                      # "ALTA (76)"
+        prophet_var = _var90_de_tabla(tabla_fc)
+        conf_str = str(tabla_fc.iloc[1]["Confianza"])         # "ALTA (76)"
         try:
             conf = int(conf_str.split("(")[1].rstrip(")"))
         except Exception:
             conf = 50
-        s_fc = max(-1.0, min(1.0, var90 / 10.0)) * conf / 100.0
-        pilares.append(("Forecast 90d (Prophet)", f"{var90:+.1f} % · confianza {conf_str}", s_fc, 0.30))
+        modelos = [("Prophet", prophet_var)]
 
-        # --- 2-4. Técnicos sobre 1 año
+        if con_modelos:
+            # LSTM (torch ya cargado)
+            try:
+                import lstm_forecast as LF
+                _f, lf_tab, _m = LF.forecast(ticker, period, horizon=120)
+                modelos.append(("LSTM", _var90_de_tabla(lf_tab)))
+            except Exception:
+                pass
+            # NeuralProphet (solo si instalado)
+            import importlib.util as _ilu
+            if _ilu.find_spec("neuralprophet") is not None:
+                try:
+                    import neuralprophet_forecast as NPF
+                    _f, np_tab, _m = NPF.forecast(ticker, period, horizon=120, epochs=50)
+                    modelos.append(("NeuralProphet", _var90_de_tabla(np_tab)))
+                except Exception:
+                    pass
+            # AutoGluon (solo si instalado)
+            if _ilu.find_spec("autogluon") is not None:
+                try:
+                    import autogluon_forecast as AG
+                    dfa = AG.descargar(ticker, period)
+                    preds, _lb = AG.entrenar_y_predecir(dfa, horizon=120, preset="fast_training", time_limit=90)
+                    ag_tab, _px = AG.resumen(preds, dfa, horizontes=(30, 90, 120))
+                    modelos.append(("AutoGluon", _var90_de_tabla(ag_tab)))
+                except Exception:
+                    pass
+
+        vars_ = [v for _, v in modelos]
+        signos = [1 if v > 0.3 else -1 if v < -0.3 else 0 for v in vars_]
+        netos = [s for s in signos if s != 0]
+        acuerdo = abs(sum(netos)) / len(netos) if netos else 0.0   # 1 = todos misma dirección
+        base = float(np.mean([max(-1.0, min(1.0, v / 10.0)) for v in vars_]))
+        if len(modelos) == 1:
+            s_fc = base * conf / 100.0                              # solo Prophet: pondera su confianza
+            lect_fc = f"{prophet_var:+.1f} % · confianza {conf_str}"
+        else:
+            s_fc = base * (0.5 + 0.5 * acuerdo)                     # multi: el acuerdo amplifica
+            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v in modelos) + f" · acuerdo {acuerdo*100:.0f}%"
+            notas_modelos = f"\n\n**Consenso de {len(modelos)} modelos:** acuerdo direccional {acuerdo*100:.0f}%."
+        pilares.append(("Forecast 90d" + (" (consenso)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
+
+        # --- 2. Técnicos sobre 1 año (con OHLCV completo) -----------------------
         dfh = _dl(ticker, "1y")
-        c = dfh["Close"].dropna(); px = float(c.iloc[-1])
-        sma50 = float(c.rolling(50).mean().iloc[-1])
-        sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else float("nan")
+        df = IND.calcular_todos(dfh)
+        last = df.iloc[-1]
+        c = df["Close"].dropna(); px = float(c.iloc[-1])
+
+        sma50, sma200 = float(last["SMA50"]), float(last["SMA200"])
         s_tend = (0.6 if (not np.isnan(sma200) and sma50 > sma200) else -0.6 if not np.isnan(sma200) else 0.0)
         s_tend += 0.4 if px > sma50 else -0.4
-        lect_tend = ("ALCISTA" if s_tend > 0 else "BAJISTA" if s_tend < 0 else "MIXTA")
-        pilares.append(("Tendencia (SMA50/200 + precio)", lect_tend, s_tend, 0.20))
+        pilares.append(("Tendencia (SMA50/200 + precio)", "ALCISTA" if s_tend > 0 else "BAJISTA" if s_tend < 0 else "MIXTA", s_tend, 0.15))
 
-        rsi = float(IND.rsi(c).iloc[-1])
-        s_rsi = 0.6 if rsi < 30 else (-0.6 if rsi > 70 else 0.0)
-        pilares.append(("RSI(14)", f"{rsi:.0f} ({'sobreventa' if rsi<30 else 'sobrecompra' if rsi>70 else 'neutral'})", s_rsi, 0.10))
+        # ADX: fuerza de tendencia (gate). Solo cuenta si la tendencia es fuerte.
+        adx_v = float(last["ADX"]); dir_adx = 1 if last["DI_POS"] > last["DI_NEG"] else -1
+        s_adx = dir_adx * 0.7 if adx_v > 25 else 0.0
+        pilares.append(("ADX (fuerza tendencia)", f"{adx_v:.0f} ({'FUERTE ' + ('alcista' if dir_adx>0 else 'bajista') if adx_v>25 else 'débil/lateral'})", s_adx, 0.08))
 
-        macd_l, macd_s, _h = IND.macd(c)
-        s_macd = 0.5 if float(macd_l.iloc[-1]) > float(macd_s.iloc[-1]) else -0.5
-        pilares.append(("MACD", "alcista" if s_macd > 0 else "bajista", s_macd, 0.10))
+        # Consenso de osciladores: RSI + Estocástico + Williams%R + MFI + CCI
+        votos = []
+        rsi_v = float(last["RSI"]); votos.append(1 if rsi_v < 30 else -1 if rsi_v > 70 else 0)
+        k_v = float(last["STOCH_K"]); votos.append(1 if k_v < 20 else -1 if k_v > 80 else 0)
+        wr_v = float(last["WILLR"]); votos.append(1 if wr_v < -80 else -1 if wr_v > -20 else 0)
+        mfi_v = float(last["MFI"]); votos.append(1 if mfi_v < 20 else -1 if mfi_v > 80 else 0)
+        cci_v = float(last["CCI"]); votos.append(1 if cci_v < -100 else -1 if cci_v > 100 else 0)
+        s_osc = float(np.mean(votos))
+        n_sv = sum(1 for v in votos if v > 0); n_sc = sum(1 for v in votos if v < 0)
+        pilares.append(("Osciladores (RSI/Estoc/W%R/MFI/CCI)", f"{n_sv} sobreventa · {n_sc} sobrecompra de 5", s_osc, 0.14))
 
-        # --- 5. Momentum 3m
+        macd_l, macd_s = float(last["MACD"]), float(last["MACD_sig"])
+        s_macd = 0.5 if macd_l > macd_s else -0.5
+        pilares.append(("MACD", "alcista" if s_macd > 0 else "bajista", s_macd, 0.08))
+
         mom3 = (px / float(c.iloc[-63]) - 1) * 100 if len(c) > 63 else 0.0
         if np.isnan(mom3):
             mom3 = 0.0
         s_mom = max(-1.0, min(1.0, mom3 / 15.0))
-        pilares.append(("Momentum 3 meses", f"{mom3:+.1f} %", s_mom, 0.15))
+        pilares.append(("Momentum 3 meses", f"{mom3:+.1f} %", s_mom, 0.12))
 
-        # --- 6. Señales del scanner
+        # OBV: dirección del flujo de volumen
+        obv_up = df["OBV"].iloc[-1] > df["OBV"].iloc[-10]
+        pilares.append(("OBV (volumen)", "flujo subiendo" if obv_up else "flujo bajando", 0.4 if obv_up else -0.4, 0.05))
+
+        # Señales del scanner
         tech = SS.señales_ticker(ticker)
         if tech:
             s_sig = max(-1.0, min(1.0, tech["Fuerza"] / 2.0))
-            pilares.append(("Señales técnicas (scanner)", tech["Señales"], s_sig, 0.15))
+            pilares.append(("Señales técnicas (scanner)", tech["Señales"], s_sig, 0.10))
 
-        # --- 7. Sentimiento FinBERT (opcional, lento la 1ª vez)
+        # Sentimiento FinBERT (opcional)
         if con_sentimiento:
             noticias = SN.extraer_noticias(ticker, 10)
             if noticias:
@@ -366,7 +432,7 @@ def tab_veredicto(ticker, period, con_sentimiento):
                 s_sent, ver_sent = SN.score_global(dfn)
                 pilares.append(("Sentimiento noticias (FinBERT)", f"{ver_sent} ({len(dfn)} titulares)", s_sent, 0.15))
 
-        # --- agregación ponderada
+        # --- agregación ponderada ----------------------------------------------
         wsum = sum(p[3] for p in pilares)
         total = sum(p[2] * p[3] for p in pilares) / wsum
         if total >= 0.35:
@@ -382,14 +448,20 @@ def tab_veredicto(ticker, period, con_sentimiento):
              for n, l, s, w in pilares]
         )
 
+        extras = []
+        if not con_modelos:
+            extras.append("consenso multi-modelo OFF")
+        if not con_sentimiento:
+            extras.append("sentimiento OFF")
         md = (f"# {emoji} {verd}\n\n"
               f"**{ticker}** · precio {px:.3f} · score total **{total:+.3f}** "
               f"(umbral: ≥+0.35 comprar · ≤−0.35 vender)\n\n"
-              f"Pilares evaluados: {len(pilares)}"
-              + ("" if con_sentimiento else " · *(sentimiento desactivado — actívalo para incluir noticias)*")
-              + "\n\n> ⚠️ Estimación estadística automática agregando forecast, técnico"
-              + (", momentum y sentimiento" if con_sentimiento else " y momentum")
-              + ". **NO es recomendación de inversión.** Úsala como resumen, no como orden.")
+              f"{len(pilares)} pilares"
+              + (f" · *({', '.join(extras)})*" if extras else "")
+              + notas_modelos
+              + "\n\n> ⚠️ Estimación estadística automática (forecast + batería técnica + volumen"
+              + (" + sentimiento" if con_sentimiento else "")
+              + "). **NO es recomendación de inversión.** Resumen, no orden.")
         return fig, tabla, md
     except Exception as e:
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
@@ -459,19 +531,21 @@ def build():
         gr.Markdown("Suite de trading algorítmico. Datos Yahoo Finance (retardo ~15 min). "
                     "Análisis y educación — **no es recomendación de inversión**.")
         with gr.Tab("★ Veredicto"):
-            gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + RSI + MACD + "
-                        "momentum + señales (+ sentimiento opcional) → estimación "
-                        "**COMPRAR / MANTENER / VENDER** con desglose por pilar. Tarda ~30-60 s "
-                        "(forecast Prophet incluido).")
+            gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + ADX + "
+                        "**consenso de 5 osciladores** + MACD + momentum + volumen (OBV) + señales "
+                        "(+ consenso multi-modelo y sentimiento opcionales) → estimación "
+                        "**COMPRAR / MANTENER / VENDER** con desglose por pilar.")
             with gr.Row():
                 tv = gr.Textbox(value="AAPL", label="Ticker", scale=3)
                 pv = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
-                sv = gr.Checkbox(value=False, label="Incluir sentimiento (1ª vez +1 min)")
                 bv = gr.Button("Analizar TODO", variant="primary")
+            with gr.Row():
+                mv = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM + pesados si están, +tiempo)")
+                sv = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
             mdv = gr.Markdown()
             tbv = gr.Dataframe(label="Desglose por pilar", wrap=True)
             plv = gr.Plot(label="Forecast 30/90/120d")
-            bv.click(tab_veredicto, [tv, pv, sv], [plv, tbv, mdv])
+            bv.click(tab_veredicto, [tv, pv, sv, mv], [plv, tbv, mdv])
         with gr.Tab("1 · Forecast"):
             with gr.Row():
                 t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)

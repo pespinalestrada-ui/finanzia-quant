@@ -365,19 +365,30 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
                 except Exception:
                     pass
 
-        vars_ = [v for _, v in modelos]
-        signos = [1 if v > 0.3 else -1 if v < -0.3 else 0 for v in vars_]
-        netos = [s for s in signos if s != 0]
-        acuerdo = abs(sum(netos)) / len(netos) if netos else 0.0   # 1 = todos misma dirección
-        base = float(np.mean([max(-1.0, min(1.0, v / 10.0)) for v in vars_]))
+        # Señal base = Prophet (con fuerza, como el modo rápido)
+        prophet_score = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
         if len(modelos) == 1:
-            s_fc = base * conf / 100.0                              # solo Prophet: pondera su confianza
+            s_fc = prophet_score
             lect_fc = f"{prophet_var:+.1f} % · confianza {conf_str}"
         else:
-            s_fc = base * (0.5 + 0.5 * acuerdo)                     # multi: el acuerdo amplifica
-            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v in modelos) + f" · acuerdo {acuerdo*100:.0f}%"
-            notas_modelos = f"\n\n**Consenso de {len(modelos)} modelos:** acuerdo direccional {acuerdo*100:.0f}%."
-        pilares.append(("Forecast 90d" + (" (consenso)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
+            # Los demás modelos CONFIRMAN o TEMPERAN la señal de Prophet (no la diluyen).
+            # Solo cuentan votos con movimiento relevante (>0.5%); los planos no penalizan.
+            sig_p = 1 if prophet_var > 0 else -1
+            otros = [v for n, v in modelos[1:]]
+            confirman = sum(1 for v in otros if abs(v) > 0.5 and (1 if v > 0 else -1) == sig_p)
+            contradicen = sum(1 for v in otros if abs(v) > 0.5 and (1 if v > 0 else -1) != sig_p)
+            n_otros = len(otros)
+            consenso = (confirman - contradicen) / n_otros if n_otros else 0.0   # [-1, +1]
+            # confirma → amplifica hasta +40%; contradice → reduce hasta -60% (no invierte)
+            factor = 1.0 + (0.4 * consenso if consenso >= 0 else 0.6 * consenso)
+            s_fc = max(-1.0, min(1.0, prophet_score * max(0.0, factor)))
+            acuerdo_pct = int((confirman / n_otros * 100)) if n_otros else 0
+            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v in modelos) + f" · {confirman}/{n_otros} confirman Prophet"
+            tag = ("✅ confirman" if consenso > 0.3 else "⚠️ contradicen" if consenso < -0.3 else "≈ mixtos")
+            notas_modelos = (f"\n\n**Consenso de {len(modelos)} modelos:** los otros {tag} la dirección de Prophet "
+                             f"({confirman} a favor, {contradicen} en contra). "
+                             f"La señal de Prophet se {'refuerza' if consenso>0 else 'tempera' if consenso<0 else 'mantiene'}.")
+        pilares.append(("Forecast 90d" + (" (Prophet + consenso)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
 
         # --- 2. Técnicos sobre 1 año (con OHLCV completo) -----------------------
         dfh = _dl(ticker, "1y")
@@ -664,4 +675,4 @@ def build():
 
 
 if __name__ == "__main__":
-    build().launch(ssr_mode=False)   # SSR off: arranque fiable en CPU gratis (evita quedarse en APP_STARTING)
+    build().launch(ssr_mode=False)

@@ -664,4 +664,4 @@ def build():
 
 
 if __name__ == "__main__":
-    build().launch()
+    build().launch(ssr_mode=False)   # SSR off: arranque fiable en CPU gratis (evita quedarse en APP_STARTING)

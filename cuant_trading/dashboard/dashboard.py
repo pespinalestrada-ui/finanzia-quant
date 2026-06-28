@@ -504,22 +504,21 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
         wsum = sum(p[3] for p in pilares)
         total = sum(p[2] * p[3] for p in pilares) / wsum
 
-        # Filtro de Régimen: bloquea señales en mercados laterales
-        en_rango = False
-        razon_rango = ""
-        if not np.isnan(hurst_v) and 0.40 < hurst_v < 0.55 and adx_v < 25:
-            en_rango = True
-            razon_rango = f"Filtro de Régimen ACTIVO: Hurst={hurst_v:.2f} (paseo aleatorio) y ADX={adx_v:.0f} (<25). "
-
-        if en_rango:
-            verd, emoji = "MANTENER", "🟡"
-            notas_modelos += f"\n\n> ⚠️ **{razon_rango}** Forzando veredicto a MANTENER por falta de tendencia direccional."
-        elif total >= 0.35:
+        # --- veredicto por umbral (el régimen NO vetea, solo avisa) -----------
+        if total >= 0.35:
             verd, emoji = "COMPRAR", "🟢"
         elif total <= -0.35:
             verd, emoji = "VENDER", "🔴"
         else:
             verd, emoji = "MANTENER", "🟡"
+
+        # Filtro de Régimen (INFORMATIVO): si el mercado es muy lateral (Hurst≈0.5,
+        # ADX<20) y la señal es marginal, avisa de menor fiabilidad — pero NO cambia
+        # el veredicto. (Antes vetaba a MANTENER y ahogaba señales válidas.)
+        if (not np.isnan(hurst_v) and 0.42 < hurst_v < 0.54 and adx_v < 20
+                and verd != "MANTENER" and abs(total) < 0.45):
+            notas_modelos += (f"\n\n> ⚠️ Mercado lateral (Hurst={hurst_v:.2f}, ADX={adx_v:.0f}<20): "
+                              f"señal {verd} MENOS fiable — usa tamaño reducido.")
 
         # --- Auto-Logging -----------------------------------------------------
         nota_log = ""

@@ -27,10 +27,9 @@ pandas/numpy/matplotlib/scipy). Datos de Yahoo Finance (retardo ~15 min, fin de 
 | [`backtest_forecast/`](backtest_forecast/) | Mide si el forecast bate al azar (DA, Theil U2, cobertura) | `python backtest_forecast.py AAPL SAB.MC` |
 | [`alpha_forecast/`](alpha_forecast/) | Dirección corto plazo (ML+Hurst) + volatilidad GARCH, con test de significancia | `python alpha_forecast.py MSFT` |
 | [`conformal_forecast/`](conformal_forecast/) | Bandas **calibradas** (split conformal) con cobertura medida | `python conformal_forecast.py SAB.MC` |
-| [`opa_spread/`](opa_spread/) | Spread de arbitraje de la OPA BBVA→Sabadell + prob. de éxito | `python opa_spread.py` |
 | [`risk_metrics/`](risk_metrics/) | VaR/CVaR/drawdown/correlación de cartera | `python risk_metrics.py SAB.MC BBVA.MC IBE.MC` |
 | [`alerts/`](alerts/) | Vigilancia de watchlist (RSI, vol, cruces, extremos) + log | `python alerts.py SAB.MC AAPL MSFT` |
-| [`dashboard/`](dashboard/) | **UI web única con todas las funciones** (16 pestañas, incl. ★ Veredicto) | `python dashboard.py` → http://127.0.0.1:7862 |
+| [`dashboard/`](dashboard/) | **UI web única con todas las funciones** (16 pestañas, incl. ★ Veredicto y 🪙 Veredicto Cripto) | `python dashboard.py` → http://127.0.0.1:7862 |
 
 **Atajo Windows:** doble clic en `Lanzar_Dashboard.bat` (raíz del proyecto) — si el
 dashboard ya corre solo abre el navegador; si no, lo arranca.

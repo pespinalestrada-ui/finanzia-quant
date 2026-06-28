@@ -34,7 +34,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context",
           SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
-          SUITE / "opa_spread", SUITE / "risk_metrics", SUITE / "alerts"]:
+          SUITE / "risk_metrics", SUITE / "alerts"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -340,11 +340,15 @@ def _mape_de_tabla(tab):
     return 10.0
 
 
-def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
+def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=False):
     """
     Agrega forecast (consenso multi-modelo opcional) + batería técnica completa
     + volumen + sentimiento en un veredicto COMPRAR / MANTENER / VENDER.
     Cada pilar puntúa en [-1, +1] y pondera. Adapta los motores a lo instalado.
+
+    cripto=True: el forecast usa frecuencia diaria 7d (forecast_tool detecta cripto),
+    la ventana de momentum se mide en días naturales y se añade un pilar de
+    Fear & Greed cripto (contrarian).
     """
     try:
         ticker = ticker.strip().upper()
@@ -445,10 +449,12 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         s_macd = 0.5 if macd_l > macd_s else -0.5
         pilares.append(("MACD", "alcista" if s_macd > 0 else "bajista", s_macd, 0.08))
 
-        mom3 = (px / float(c.iloc[-63]) - 1) * 100 if len(c) > 63 else 0.0
+        win_mom = 90 if cripto else 63        # cripto cotiza 7d: ~90 filas = 3 meses naturales
+        mom3 = (px / float(c.iloc[-win_mom]) - 1) * 100 if len(c) > win_mom else 0.0
         if np.isnan(mom3):
             mom3 = 0.0
-        s_mom = max(-1.0, min(1.0, mom3 / 15.0))
+        # cripto es más volátil → normaliza con divisor mayor para no saturar el score
+        s_mom = max(-1.0, min(1.0, mom3 / (25.0 if cripto else 15.0)))
         pilares.append(("Momentum 3 meses", f"{mom3:+.1f} %", s_mom, 0.12))
 
         # OBV: dirección del flujo de volumen
@@ -468,6 +474,14 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
                 dfn = SN.analizar(noticias)
                 s_sent, ver_sent = SN.score_global(dfn)
                 pilares.append(("Sentimiento noticias (FinBERT)", f"{ver_sent} ({len(dfn)} titulares)", s_sent, 0.15))
+
+        # Fear & Greed cripto (solo cripto): contrarian → miedo extremo = posible compra
+        if cripto:
+            cr = MC.fear_greed_cripto()
+            if cr:
+                sc = cr["score"]
+                s_fg = max(-0.6, min(0.6, (50 - sc) / 50.0 * 0.6))   # miedo (+) / codicia (−)
+                pilares.append(("Fear & Greed cripto (contrarian)", f"{sc} · {cr['etiqueta']}", s_fg, 0.12))
 
         # --- agregación ponderada ----------------------------------------------
         wsum = sum(p[3] for p in pilares)
@@ -524,7 +538,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
             extras.append("consenso multi-modelo OFF")
         if not con_sentimiento:
             extras.append("sentimiento OFF")
-        md = (f"# {emoji} {verd}\n\n"
+        md = (f"# {emoji} {verd}" + ("  🪙 *cripto (forecast diario 7d)*" if cripto else "") + "\n\n"
               f"**{ticker}** · precio {px:.3f} · score total **{total:+.3f}** "
               f"(umbral: ≥+0.35 comprar · ≤−0.35 vender)\n\n"
               f"{len(pilares)} pilares"
@@ -537,6 +551,12 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         return fig, tabla, md
     except Exception as e:
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_veredicto_cripto(ticker, period, con_sentimiento, con_modelos=False):
+    """Veredicto para criptomonedas: mismo agregador con forecast diario 7d,
+    momentum en días naturales y pilar de Fear & Greed cripto."""
+    return tab_veredicto(ticker, period, con_sentimiento, con_modelos, cripto=True)
 
 
 # ---- 11. Diario de operaciones (paper trading) ------------------------------
@@ -637,22 +657,6 @@ def tab_conformal(ticker, period):
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
 
 
-# ---- 15. OPA spread: arbitraje de fusión BBVA→Sabadell ----------------------
-def tab_opa(canje, efectivo, period, fracaso):
-    try:
-        import opa_spread as OS
-        pf = float(fracaso) if fracaso not in (None, "", 0) else None
-        fig, tabla, meta, texto = OS.forecast(float(canje), float(efectivo), period, precio_fracaso=pf)
-        prob = meta["prob_exito"]
-        md = (f"### OPA BBVA → Sabadell · spread de arbitraje\n"
-              f"Spread hoy **{meta['spread_hoy']:+.2f}%** · "
-              f"prob. implícita de éxito **{prob*100:.0f}%**" if not np.isnan(prob) else "n/d")
-        md += f"\n\n**Lectura:** {texto}\n\n> Términos del canje ajustables. NO es asesoramiento."
-        return fig, tabla, md
-    except Exception as e:
-        return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
-
-
 # ---- 16. Riesgo de cartera: VaR/CVaR/drawdown/correlación -------------------
 def tab_riesgo(txt, period, conf):
     try:
@@ -708,6 +712,22 @@ def build():
             tbv = gr.Dataframe(label="Desglose por pilar", wrap=True)
             plv = gr.Plot(label="Forecast 30/90/120d")
             bv.click(tab_veredicto, [tv, pv, sv, mv], [plv, tbv, mdv])
+        with gr.Tab("🪙 Veredicto Cripto"):
+            gr.Markdown("**Veredicto para criptomonedas** (BTC-USD, ETH-EUR, SOL-USD…). "
+                        "Mismo agregador pero con **forecast diario 7d**, momentum en días "
+                        "naturales y pilar de **Fear & Greed cripto** (contrarian) → "
+                        "**COMPRAR / MANTENER / VENDER**. Usa tickers Yahoo tipo `BTC-USD`.")
+            with gr.Row():
+                tvc = gr.Textbox(value="BTC-USD", label="Ticker cripto (BASE-FIAT)", scale=3)
+                pvc = gr.Dropdown(["1y", "2y", "3y", "5y"], value="3y", label="Histórico")
+                bvc = gr.Button("Analizar cripto", variant="primary")
+            with gr.Row():
+                mvc = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM…, +tiempo)")
+                svc = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
+            mdvc = gr.Markdown()
+            tbvc = gr.Dataframe(label="Desglose por pilar", wrap=True)
+            plvc = gr.Plot(label="Forecast cripto 30/90/120d")
+            bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc], [plvc, tbvc, mdvc])
         with gr.Tab("1 · Forecast"):
             with gr.Row():
                 t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
@@ -841,20 +861,6 @@ def build():
             figc = gr.Plot()
             tblc = gr.Dataframe(wrap=True)
             bc.click(tab_conformal, [tc, pc], [figc, tblc, mdc])
-        with gr.Tab("⚔️ OPA BBVA-SAB"):
-            gr.Markdown("**Spread de arbitraje de la OPA** (ángulo diferencial del proyecto). "
-                        "Precio SAB vs valor implícito de la oferta BBVA + prob. de éxito. "
-                        "Ajusta el canje a los términos vigentes.")
-            with gr.Row():
-                oc = gr.Number(value=4.83, label="Canje (SAB por 1 BBVA)")
-                oe = gr.Number(value=0.0, label="Efectivo €/SAB")
-                op = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
-                of = gr.Number(value=0.0, label="Precio fracaso (0=auto)")
-                bo = gr.Button("Calcular spread", variant="primary")
-            mdo = gr.Markdown()
-            figo = gr.Plot()
-            tblo = gr.Dataframe(wrap=True)
-            bo.click(tab_opa, [oc, oe, op, of], [figo, tblo, mdo])
         with gr.Tab("🛡️ Riesgo"):
             gr.Markdown("**Riesgo de cartera**: VaR/CVaR históricos, máximo drawdown y "
                         "correlación. Mide lo que SÍ es estimable (riesgo), no la dirección.")

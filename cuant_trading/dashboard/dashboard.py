@@ -861,6 +861,18 @@ def build():
         gr.Markdown("# FinanzIA — Mesa cuantitativa")
         gr.Markdown("Suite de trading algorítmico. Datos Yahoo Finance (retardo ~15 min). "
                     "Análisis y educación — **no es recomendación de inversión**.")
+        with gr.Tab("📊 Factores"):
+            gr.Markdown("**Modelo multi-factor (smart beta)** — cómo deciden los fondos cuant "
+                        "qué comprar. Rankea un universo por **value + momentum + quality + low-vol** "
+                        "(z-score cruzado). Compra el top, evita el fondo. Tarda ~1-3 s/acción "
+                        "(descarga fundamentales).")
+            with gr.Row():
+                tf = gr.Textbox(value="AAPL, MSFT, NVDA, JPM, XOM, KO, SAB.MC, ITX.MC",
+                                label="Universo de acciones (coma)", scale=4)
+                bf = gr.Button("Rankear", variant="primary")
+            mdf = gr.Markdown()
+            tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
+            bf.click(tab_factores, [tf], [tblf, mdf])
         with gr.Tab("★ Veredicto"):
             gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + ADX + "
                         "**consenso de 5 osciladores** + MACD + momentum + volumen (OBV) + señales "
@@ -893,6 +905,83 @@ def build():
             tbvc = gr.Dataframe(label="Desglose por pilar", wrap=True)
             plvc = gr.Plot(label="Forecast cripto 30/90/120d")
             bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc], [plvc, tbvc, mdvc])
+        with gr.Tab("⏱️ Intradía"):
+            gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
+                        "**backtest Opening Range Breakout con COSTES** (comisión+spread+slippage). "
+                        "Datos yfinance intradía (retraso ~15 min, histórico corto) → para *validar* "
+                        "un método, no para ejecutar en vivo. El coste se come el edge: aquí se ve.")
+            with gr.Row():
+                ti = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                ii = gr.Dropdown(["5m", "15m", "30m", "60m"], value="15m", label="Intervalo")
+                ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
+                ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
+            with gr.Row():
+                bi1 = gr.Button("📷 Snapshot de hoy", variant="secondary")
+                bi2 = gr.Button("🧪 Backtest ORB con costes", variant="primary")
+            mdi = gr.Markdown()
+            figi = gr.Plot()
+            tbli = gr.Dataframe(wrap=True)
+            bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
+            bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
+            gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")
+            with gr.Row():
+                tis = gr.Textbox(value="AAPL, MSFT, NVDA, TSLA, JPM, SAB.MC",
+                                 label="Universo (coma)", scale=4)
+                bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
+            bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
+        with gr.Tab("🦙 Alpaca Paper"):
+            gr.Markdown("**Paper trading en vivo** (Alpaca · dinero FICTICIO, datos real-time IEX). "
+                        "El salto a 'vivo' sin riesgo. **Las órdenes las envías TÚ** con el botón — "
+                        "el asistente nunca opera por su cuenta. Configura `ALPACA_KEY`/`ALPACA_SECRET` en `.env`.")
+            with gr.Row():
+                bap = gr.Button("🔄 Refrescar cuenta y posiciones", variant="secondary")
+            mdap = gr.Markdown()
+            tblap = gr.Dataframe(label="Posiciones abiertas (paper)", wrap=True)
+            gr.Markdown("**Cotización real-time**")
+            with gr.Row():
+                tapq = gr.Textbox(value="AAPL", label="Símbolo", scale=3)
+                bapq = gr.Button("Precio")
+            mdapq = gr.Markdown()
+            gr.Markdown("---\n**Enviar orden PAPER** (la disparas tú; es dinero ficticio)")
+            with gr.Row():
+                taps = gr.Textbox(value="AAPL", label="Símbolo", scale=2)
+                tapn = gr.Number(value=1, label="Cantidad")
+                tapl = gr.Radio(["Comprar", "Vender"], value="Comprar", label="Lado")
+                bapo = gr.Button("📨 Enviar orden PAPER", variant="primary")
+            tapr = gr.Checkbox(value=True, label="Registrar en el diario como apertura (con nota de factores). "
+                                                 "Desmárcalo si esta orden CIERRA una posición.")
+            mdapo = gr.Markdown()
+            bap.click(tab_alpaca_refrescar, [], [mdap, tblap])
+            bapq.click(tab_alpaca_precio, [tapq], [mdapq])
+            bapo.click(tab_alpaca_orden, [taps, tapn, tapl, tapr], [mdapo, mdap, tblap])
+            app.load(tab_alpaca_refrescar, [], [mdap, tblap])
+        with gr.Tab("📒 Diario"):
+            gr.Markdown("**Paper trading** — registra operaciones SIMULADAS y mide si tu método "
+                        "tiene ventaja real antes de arriesgar dinero. Con 20-30 cerradas, el "
+                        "win rate y payoff de aquí alimentan el Kelly del Tamaño posición.")
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("#### Abrir operación")
+                    jt = gr.Textbox(label="Ticker", value="")
+                    with gr.Row():
+                        je = gr.Number(label="Entrada"); js = gr.Number(label="Stop")
+                        ja = gr.Number(label="Acciones", value=10, precision=0)
+                    jn = gr.Textbox(label="Nota (ej. veredicto del sistema)", value="")
+                    jshort = gr.Checkbox(label="Es venta en corto (SHORT)", value=False)
+                    jb1 = gr.Button("Abrir (simulada)", variant="primary")
+                with gr.Column():
+                    gr.Markdown("#### Cerrar operación")
+                    jid = gr.Number(label="ID de la operación", precision=0)
+                    jx = gr.Number(label="Precio de salida")
+                    jb2 = gr.Button("Cerrar", variant="primary")
+                    jb3 = gr.Button("🔄 Refrescar diario")
+            jmsg = gr.Markdown()
+            jstats = gr.Textbox(label="Estadísticas (incluye Kelly para position sizer)", lines=11)
+            jtabla = gr.Dataframe(label="Operaciones", wrap=True)
+            jb1.click(tab_journal_abrir, [jt, je, js, ja, jn, jshort], [jmsg, jtabla, jstats])
+            jb2.click(tab_journal_cerrar, [jid, jx], [jmsg, jtabla, jstats])
+            jb3.click(tab_journal_refrescar, [], [jtabla, jstats])
+            app.load(tab_journal_refrescar, [], [jtabla, jstats])
         with gr.Tab("1 · Forecast"):
             with gr.Row():
                 t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
@@ -965,33 +1054,6 @@ def build():
                 b9 = gr.Button("Calcular", variant="primary")
             md9 = gr.Markdown()
             b9.click(tab_sizer, [t9, c9, r9, e9, s9, a9], [md9])
-        with gr.Tab("📒 Diario"):
-            gr.Markdown("**Paper trading** — registra operaciones SIMULADAS y mide si tu método "
-                        "tiene ventaja real antes de arriesgar dinero. Con 20-30 cerradas, el "
-                        "win rate y payoff de aquí alimentan el Kelly del Tamaño posición.")
-            with gr.Row():
-                with gr.Column():
-                    gr.Markdown("#### Abrir operación")
-                    jt = gr.Textbox(label="Ticker", value="")
-                    with gr.Row():
-                        je = gr.Number(label="Entrada"); js = gr.Number(label="Stop")
-                        ja = gr.Number(label="Acciones", value=10, precision=0)
-                    jn = gr.Textbox(label="Nota (ej. veredicto del sistema)", value="")
-                    jshort = gr.Checkbox(label="Es venta en corto (SHORT)", value=False)
-                    jb1 = gr.Button("Abrir (simulada)", variant="primary")
-                with gr.Column():
-                    gr.Markdown("#### Cerrar operación")
-                    jid = gr.Number(label="ID de la operación", precision=0)
-                    jx = gr.Number(label="Precio de salida")
-                    jb2 = gr.Button("Cerrar", variant="primary")
-                    jb3 = gr.Button("🔄 Refrescar diario")
-            jmsg = gr.Markdown()
-            jstats = gr.Textbox(label="Estadísticas (incluye Kelly para position sizer)", lines=11)
-            jtabla = gr.Dataframe(label="Operaciones", wrap=True)
-            jb1.click(tab_journal_abrir, [jt, je, js, ja, jn, jshort], [jmsg, jtabla, jstats])
-            jb2.click(tab_journal_cerrar, [jid, jx], [jmsg, jtabla, jstats])
-            jb3.click(tab_journal_refrescar, [], [jtabla, jstats])
-            app.load(tab_journal_refrescar, [], [jtabla, jstats])
         with gr.Tab("🌡️ Mercado"):
             gr.Markdown("Contexto ANTES de mirar tickers: **Fear & Greed** (bolsa y cripto), "
                         "**VIX** con régimen de volatilidad, y fundamentales del ticker que quieras.")
@@ -1048,68 +1110,6 @@ def build():
             mdal = gr.Markdown()
             tblal = gr.Dataframe(wrap=True)
             bal.click(tab_alertas, [tal], [tblal, mdal])
-        with gr.Tab("📊 Factores"):
-            gr.Markdown("**Modelo multi-factor (smart beta)** — cómo deciden los fondos cuant "
-                        "qué comprar. Rankea un universo por **value + momentum + quality + low-vol** "
-                        "(z-score cruzado). Compra el top, evita el fondo. Tarda ~1-3 s/acción "
-                        "(descarga fundamentales).")
-            with gr.Row():
-                tf = gr.Textbox(value="AAPL, MSFT, NVDA, JPM, XOM, KO, SAB.MC, ITX.MC",
-                                label="Universo de acciones (coma)", scale=4)
-                bf = gr.Button("Rankear", variant="primary")
-            mdf = gr.Markdown()
-            tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
-            bf.click(tab_factores, [tf], [tblf, mdf])
-        with gr.Tab("⏱️ Intradía"):
-            gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
-                        "**backtest Opening Range Breakout con COSTES** (comisión+spread+slippage). "
-                        "Datos yfinance intradía (retraso ~15 min, histórico corto) → para *validar* "
-                        "un método, no para ejecutar en vivo. El coste se come el edge: aquí se ve.")
-            with gr.Row():
-                ti = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                ii = gr.Dropdown(["5m", "15m", "30m", "60m"], value="15m", label="Intervalo")
-                ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
-                ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
-            with gr.Row():
-                bi1 = gr.Button("📷 Snapshot de hoy", variant="secondary")
-                bi2 = gr.Button("🧪 Backtest ORB con costes", variant="primary")
-            mdi = gr.Markdown()
-            figi = gr.Plot()
-            tbli = gr.Dataframe(wrap=True)
-            bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
-            bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
-            gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")
-            with gr.Row():
-                tis = gr.Textbox(value="AAPL, MSFT, NVDA, TSLA, JPM, SAB.MC",
-                                 label="Universo (coma)", scale=4)
-                bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
-            bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
-        with gr.Tab("🦙 Alpaca Paper"):
-            gr.Markdown("**Paper trading en vivo** (Alpaca · dinero FICTICIO, datos real-time IEX). "
-                        "El salto a 'vivo' sin riesgo. **Las órdenes las envías TÚ** con el botón — "
-                        "el asistente nunca opera por su cuenta. Configura `ALPACA_KEY`/`ALPACA_SECRET` en `.env`.")
-            with gr.Row():
-                bap = gr.Button("🔄 Refrescar cuenta y posiciones", variant="secondary")
-            mdap = gr.Markdown()
-            tblap = gr.Dataframe(label="Posiciones abiertas (paper)", wrap=True)
-            gr.Markdown("**Cotización real-time**")
-            with gr.Row():
-                tapq = gr.Textbox(value="AAPL", label="Símbolo", scale=3)
-                bapq = gr.Button("Precio")
-            mdapq = gr.Markdown()
-            gr.Markdown("---\n**Enviar orden PAPER** (la disparas tú; es dinero ficticio)")
-            with gr.Row():
-                taps = gr.Textbox(value="AAPL", label="Símbolo", scale=2)
-                tapn = gr.Number(value=1, label="Cantidad")
-                tapl = gr.Radio(["Comprar", "Vender"], value="Comprar", label="Lado")
-                bapo = gr.Button("📨 Enviar orden PAPER", variant="primary")
-            tapr = gr.Checkbox(value=True, label="Registrar en el diario como apertura (con nota de factores). "
-                                                 "Desmárcalo si esta orden CIERRA una posición.")
-            mdapo = gr.Markdown()
-            bap.click(tab_alpaca_refrescar, [], [mdap, tblap])
-            bapq.click(tab_alpaca_precio, [tapq], [mdapq])
-            bapo.click(tab_alpaca_orden, [taps, tapn, tapl, tapr], [mdapo, mdap, tblap])
-            app.load(tab_alpaca_refrescar, [], [mdap, tblap])
     return app
 
 

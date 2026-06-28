@@ -790,16 +790,42 @@ def tab_alpaca_precio(symbol):
         return f"**Error:** {e}"
 
 
-def tab_alpaca_orden(symbol, qty, lado):
-    """Envía una orden PAPER. La dispara el USUARIO con este botón (no el asistente)."""
+def tab_alpaca_orden(symbol, qty, lado, registrar):
+    """Envía una orden PAPER. La dispara el USUARIO con este botón (no el asistente).
+    Si 'registrar', la apunta en el diario como apertura, con su nota de factores."""
     try:
         import alpaca_paper as AP
+        symbol = (symbol or "").strip().upper()
         if not symbol or float(qty) <= 0:
             return "Indica símbolo y cantidad > 0.", "", pd.DataFrame()
         side = "buy" if lado == "Comprar" else "sell"
         o = AP.enviar_orden(symbol, float(qty), side)
         msg = (f"✅ Orden PAPER enviada: **{o['side']} {o['qty']} {o['symbol']}** · "
                f"estado **{o['estado']}** · id `{o['id']}`")
+
+        # registro en el diario (como apertura) con nota de factores
+        if registrar:
+            try:
+                entrada = AP.cotizacion(symbol)["precio"]
+                # stop de referencia: 2×ATR si hay; si no, 2 %
+                try:
+                    atr, _px = PS.atr_actual(symbol)
+                    dist = 2 * atr if atr and not np.isnan(atr) else entrada * 0.02
+                except Exception:
+                    dist = entrada * 0.02
+                direccion = "LONG" if side == "buy" else "SHORT"
+                stop = entrada - dist if direccion == "LONG" else entrada + dist
+                try:
+                    nf, _, _ = FS.score_absoluto(symbol)
+                except Exception:
+                    nf = None
+                acc = max(1, int(round(float(qty))))
+                nid = JR.abrir(symbol, entrada, stop, acc,
+                               f"Alpaca PAPER {side} (orden {o['id']})", direccion, nf)
+                msg += f"\n\n📒 Registrada en el diario como **#{nid}** ({direccion}, entrada {entrada:.3f}, stop {stop:.3f})."
+            except Exception as ej:
+                msg += f"\n\n⚠️ Orden OK pero no se pudo registrar en el diario: {ej}"
+
         estado_md, pos = _alpaca_estado()
         return msg, estado_md, pos
     except Exception as e:
@@ -1077,10 +1103,12 @@ def build():
                 tapn = gr.Number(value=1, label="Cantidad")
                 tapl = gr.Radio(["Comprar", "Vender"], value="Comprar", label="Lado")
                 bapo = gr.Button("📨 Enviar orden PAPER", variant="primary")
+            tapr = gr.Checkbox(value=True, label="Registrar en el diario como apertura (con nota de factores). "
+                                                 "Desmárcalo si esta orden CIERRA una posición.")
             mdapo = gr.Markdown()
             bap.click(tab_alpaca_refrescar, [], [mdap, tblap])
             bapq.click(tab_alpaca_precio, [tapq], [mdapq])
-            bapo.click(tab_alpaca_orden, [taps, tapn, tapl], [mdapo, mdap, tblap])
+            bapo.click(tab_alpaca_orden, [taps, tapn, tapl, tapr], [mdapo, mdap, tblap])
             app.load(tab_alpaca_refrescar, [], [mdap, tblap])
     return app
 

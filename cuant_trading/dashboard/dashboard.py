@@ -36,7 +36,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
-          SUITE / "signal_engine", SUITE / "risk_manager"]:
+          SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -853,6 +853,41 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 23. Orquestador del sistema (plan + ejecución paper) -------------------
+def tab_sistema_plan(txt, capital, tv, mp, umbral):
+    try:
+        import orchestrator as OR, risk_manager as RKM
+        tickers = _parse(txt)
+        if not tickers:
+            return pd.DataFrame(), "Mete tickers."
+        plan, meta = OR.plan_de_hoy(tickers, float(capital), float(tv), int(mp), float(umbral))
+        if "mensaje" in meta:
+            return pd.DataFrame(), meta["mensaje"]
+        aviso = "⚠️ EXCEDE límite de riesgo" if meta["excede_riesgo"] else "✓ dentro del límite"
+        md = (f"**Plan de hoy** · {meta['n_ordenes']} órdenes · exposición {meta['exposicion_pct']}% · "
+              f"riesgo {meta['riesgo_total_pct']}% ({aviso}).\n\n"
+              f"> Revisa el plan. Para mandarlo a PAPER usa el botón de abajo (lo disparas TÚ).")
+        return plan, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_sistema_ejecutar(txt, capital, tv, mp, umbral, confirmar):
+    """Ejecuta el plan en Alpaca PAPER. Requiere que el usuario marque la confirmación."""
+    try:
+        if not confirmar:
+            return pd.DataFrame(), "☝️ Marca **'Confirmo enviar a PAPER'** para ejecutar. (Es dinero ficticio.)"
+        import orchestrator as OR
+        tickers = _parse(txt)
+        plan, meta = OR.plan_de_hoy(tickers, float(capital), float(tv), int(mp), float(umbral))
+        if plan.empty:
+            return pd.DataFrame(), "Plan vacío: nada que ejecutar."
+        rdf, resumen = OR.ejecutar(plan, registrar=True)
+        return rdf, f"✅ {resumen}"
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
 # ---- 22. Gestor de riesgo / plan de órdenes --------------------------------
 def tab_plan_riesgo(txt, capital, target_vol, max_pos, umbral):
     try:
@@ -1067,6 +1102,25 @@ def build():
             mdrk = gr.Markdown()
             tbrk = gr.Dataframe(label="Plan de órdenes", wrap=True)
             brk.click(tab_plan_riesgo, [trk, crk, vrk, mrk, urk], [tbrk, mdrk])
+        with gr.Tab("🤖 Sistema"):
+            gr.Markdown("**El sistema completo de un clic**: señales → plan/riesgo → ejecución "
+                        "PAPER → diario. Genera el plan, revísalo, y si quieres lo mandas a Alpaca "
+                        "paper (dinero ficticio). **Las órdenes las disparas TÚ** con confirmación.")
+            with gr.Row():
+                tsy = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                 label="Watchlist (coma)", scale=3)
+                csy = gr.Number(value=10000, label="Capital €")
+                vsy = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
+                msy = gr.Dropdown([3, 4, 5, 6, 8], value=5, label="Máx pos.")
+                usy = gr.Slider(0.1, 0.6, value=0.30, step=0.05, label="Umbral")
+            with gr.Row():
+                bsy1 = gr.Button("1) Generar plan de hoy", variant="secondary")
+                conf = gr.Checkbox(value=False, label="Confirmo enviar a PAPER (dinero ficticio)")
+                bsy2 = gr.Button("2) ▶️ Ejecutar en PAPER", variant="primary")
+            mdsy = gr.Markdown()
+            tbsy = gr.Dataframe(label="Plan / Resultado", wrap=True)
+            bsy1.click(tab_sistema_plan, [tsy, csy, vsy, msy, usy], [tbsy, mdsy])
+            bsy2.click(tab_sistema_ejecutar, [tsy, csy, vsy, msy, usy, conf], [tbsy, mdsy])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

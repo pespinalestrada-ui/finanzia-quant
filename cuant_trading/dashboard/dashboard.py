@@ -761,6 +761,26 @@ def tab_intraday_backtest(ticker, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+def tab_intraday_scan(txt, interval, or_min, coste_bps):
+    try:
+        import intraday as IN
+        tickers = _parse(txt)
+        if len(tickers) < 2:
+            return pd.DataFrame(), "Mete **al menos 2** tickers para escanear."
+        tabla = IN.escanear(tickers, interval, int(or_min), float(coste_bps))
+        if tabla.empty:
+            return pd.DataFrame(), "Ningún ticker con operaciones (mercado cerrado/histórico corto/sin roturas)."
+        ganan = tabla[tabla["Edge neto"].str.startswith("SÍ")]["Ticker"].tolist()
+        md = (f"### Escaneo ORB · {len(tickers)} tickers · {interval} · coste {coste_bps} bps\n"
+              f"Rankeado por **expectancy NETA** (tras costes). "
+              f"Con edge significativo (p<0.05): **{', '.join(ganan) if ganan else 'ninguno'}**.\n\n"
+              f"> Si ninguno supera el azar tras costes, es la realidad del intradía líquido — "
+              f"no un fallo. Opera en paper solo los que tengan edge neto significativo. No es recomendación.")
+        return tabla, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
@@ -987,6 +1007,12 @@ def build():
             tbli = gr.Dataframe(wrap=True)
             bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
             bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
+            gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")
+            with gr.Row():
+                tis = gr.Textbox(value="AAPL, MSFT, NVDA, TSLA, JPM, SAB.MC",
+                                 label="Universo (coma)", scale=4)
+                bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
+            bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
     return app
 
 

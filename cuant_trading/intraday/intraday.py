@@ -174,6 +174,33 @@ def metricas_backtest(bt, coste_bps):
     }
 
 
+def escanear(tickers, interval="15m", or_min=30, coste_bps=6.0):
+    """Backtest ORB con costes sobre varios tickers → tabla rankeada por expectancy NETA."""
+    filas = []
+    for tk in tickers:
+        tk = tk.strip().upper()
+        if not tk:
+            continue
+        try:
+            df = descargar(tk, interval)
+            bt = backtest_orb(df, or_min, interval, coste_bps)
+            mt = metricas_backtest(bt, coste_bps)
+            if mt["n"] == 0:
+                continue
+            filas.append({
+                "Ticker": tk, "Ops": mt["n"], "Win %": mt["win_rate"],
+                "Exp bruta %": mt["exp_bruto_pct"], "Exp neta %": mt["exp_neto_pct"],
+                "Total neto %": mt["total_neto_pct"], "p": mt["pval"],
+                "Edge neto": "SÍ ✅" if mt["edge"] else "no",
+            })
+        except Exception:
+            continue
+    df = pd.DataFrame(filas)
+    if not df.empty:
+        df = df.sort_values("Exp neta %", ascending=False).reset_index(drop=True)
+    return df
+
+
 def _plot_snapshot(hoy, ticker, interval, sesion):
     import matplotlib
     matplotlib.use("Agg")
@@ -191,12 +218,28 @@ def _plot_snapshot(hoy, ticker, interval, sesion):
 
 def main():
     ap = argparse.ArgumentParser(description="Análisis y backtest intradía con costes.")
-    ap.add_argument("ticker", nargs="?", default="AAPL")
+    ap.add_argument("tickers", nargs="*", default=["AAPL"], help="Uno = detalle; varios = escaneo rankeado.")
     ap.add_argument("--interval", default="5m", choices=list(_MIN))
     ap.add_argument("--or-min", type=int, default=30, help="Minutos del rango de apertura.")
     ap.add_argument("--coste-bps", type=float, default=6.0, help="Coste ida+vuelta (comisión+spread+slippage) en bps.")
     a = ap.parse_args()
+    tickers = a.tickers or ["AAPL"]
 
+    # varios tickers → escaneo rankeado por expectancy neta
+    if len(tickers) > 1:
+        print(f"\nEscaneando {len(tickers)} tickers · ORB {a.or_min}min · {a.interval} · coste {a.coste_bps} bps...")
+        tabla = escanear(tickers, a.interval, a.or_min, a.coste_bps)
+        if tabla.empty:
+            print("Ningún ticker con operaciones (mercado cerrado, histórico corto o sin roturas).")
+            return
+        print("\n" + tabla.to_string(index=False))
+        ganan = tabla[tabla["Edge neto"].str.startswith("SÍ")]["Ticker"].tolist()
+        print(f"\n> Rankeado por expectancy NETA (tras costes). Con edge significativo: "
+              f"{', '.join(ganan) if ganan else 'ninguno'}.")
+        print("> Si ninguno supera el azar tras costes, es la realidad del intradía líquido. No es recomendación.\n")
+        return
+
+    a.ticker = tickers[0]
     print(f"\nDescargando {a.ticker.upper()} intradía {a.interval}...")
     df = descargar(a.ticker, a.interval)
     ind = indicadores_intradia(df, a.or_min, a.interval)

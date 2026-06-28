@@ -29,6 +29,7 @@ pandas/numpy/matplotlib/scipy). Datos de Yahoo Finance (retardo ~15 min, fin de 
 | [`conformal_forecast/`](conformal_forecast/) | Bandas **calibradas** (split conformal) con cobertura medida | `python conformal_forecast.py SAB.MC` |
 | [`risk_metrics/`](risk_metrics/) | VaR/CVaR/drawdown/correlación de cartera | `python risk_metrics.py SAB.MC BBVA.MC IBE.MC` |
 | [`factor_scorer/`](factor_scorer/) | **Modelo multi-factor (smart beta)**: rankea un universo por value/momentum/quality/low-vol | `python factor_scorer.py AAPL MSFT NVDA JPM XOM` |
+| [`intraday/`](intraday/) | **Intradía**: VWAP + rango apertura + backtest Opening Range Breakout **con costes** (bruto vs neto) | `python intraday.py AAPL --interval 15m` |
 | [`alerts/`](alerts/) | Vigilancia de watchlist (RSI, vol, cruces, extremos) + log | `python alerts.py SAB.MC AAPL MSFT` |
 | [`dashboard/`](dashboard/) | **UI web única con todas las funciones** (16 pestañas, incl. ★ Veredicto y 🪙 Veredicto Cripto) | `python dashboard.py` → http://127.0.0.1:7862 |
 

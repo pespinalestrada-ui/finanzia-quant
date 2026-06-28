@@ -34,7 +34,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context",
           SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
-          SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer"]:
+          SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
+          SUITE / "intraday"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -727,6 +728,39 @@ def tab_factores(txt):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 19. Intradía: snapshot + backtest ORB con costes ----------------------
+def tab_intraday_snapshot(ticker, interval, or_min):
+    try:
+        import intraday as IN
+        fig, tabla, md = IN.snapshot(ticker.strip().upper(), interval, int(or_min))
+        return fig, tabla, md
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_intraday_backtest(ticker, interval, or_min, coste_bps):
+    try:
+        import intraday as IN
+        df = IN.descargar(ticker.strip().upper(), interval)
+        bt = IN.backtest_orb(df, int(or_min), interval, float(coste_bps))
+        mt = IN.metricas_backtest(bt, float(coste_bps))
+        if mt["n"] == 0:
+            return pd.DataFrame(), f"**{ticker.upper()}:** {mt['mensaje']}"
+        verd = ("✅ **Edge NETO positivo y significativo** → candidato a paper trading (Alpaca)."
+                if mt["edge"] else
+                "⛔ **Tras costes NO hay edge significativo.** No operes real con esto.")
+        md = (f"### {ticker.upper()} · ORB {or_min}min · {interval} · coste {coste_bps} bps\n"
+              f"- Operaciones: **{mt['n']}** · Win rate: **{mt['win_rate']}%** · p={mt['pval']}\n"
+              f"- Expectancy **bruta** {mt['exp_bruto_pct']:+.3f}% → coste −{mt['coste_pct']:.3f}% → "
+              f"**neta {mt['exp_neto_pct']:+.3f}%** por operación\n"
+              f"- Total neto acumulado: **{mt['total_neto_pct']:+.2f}%**\n\n{verd}\n\n"
+              f"> El coste se come el edge: un backtest intradía SIN costes miente. "
+              f"yfinance intradía = desarrollo (retraso ~15 min), no ejecución. No es recomendación.")
+        return bt, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
@@ -935,6 +969,24 @@ def build():
             mdf = gr.Markdown()
             tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
             bf.click(tab_factores, [tf], [tblf, mdf])
+        with gr.Tab("⏱️ Intradía"):
+            gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
+                        "**backtest Opening Range Breakout con COSTES** (comisión+spread+slippage). "
+                        "Datos yfinance intradía (retraso ~15 min, histórico corto) → para *validar* "
+                        "un método, no para ejecutar en vivo. El coste se come el edge: aquí se ve.")
+            with gr.Row():
+                ti = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                ii = gr.Dropdown(["5m", "15m", "30m", "60m"], value="15m", label="Intervalo")
+                ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
+                ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
+            with gr.Row():
+                bi1 = gr.Button("📷 Snapshot de hoy", variant="secondary")
+                bi2 = gr.Button("🧪 Backtest ORB con costes", variant="primary")
+            mdi = gr.Markdown()
+            figi = gr.Plot()
+            tbli = gr.Dataframe(wrap=True)
+            bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
+            bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
     return app
 
 

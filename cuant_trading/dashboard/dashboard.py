@@ -35,7 +35,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
-          SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest"]:
+          SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
+          SUITE / "signal_engine"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -852,6 +853,27 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 21. Generador de señales del sistema ----------------------------------
+def tab_senales_sistema(txt, umbral, con_factor):
+    try:
+        import signal_engine as SE
+        tickers = _parse(txt)
+        if not tickers:
+            return pd.DataFrame(), "Mete tickers."
+        df = SE.generar(tickers, float(umbral), bool(con_factor))
+        if df.empty:
+            return pd.DataFrame(), "Sin señales (datos insuficientes)."
+        comprar = df[df["Señal"].str.contains("COMPRAR")]["Ticker"].tolist()
+        vender = df[df["Señal"].str.contains("VENDER")]["Ticker"].tolist()
+        md = (f"**COMPRAR:** {', '.join(comprar) if comprar else '—'}  ·  "
+              f"**VENDER:** {', '.join(vender) if vender else '—'}\n\n"
+              f"> Score técnico del Veredicto (validado). En líquidas no supera multiple-testing → "
+              f"marco de PAPER, no alfa garantizado. Entrada del bucle de ejecución.")
+        return df, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
 # ---- 20. Validar Veredicto (backtest honesto del score) --------------------
 def tab_validar_veredicto(txt, horizon, trials):
     try:
@@ -995,6 +1017,19 @@ def build():
             jb2.click(tab_journal_cerrar, [jid, jx], [jmsg, jtabla, jstats])
             jb3.click(tab_journal_refrescar, [], [jtabla, jstats])
             app.load(tab_journal_refrescar, [], [jtabla, jstats])
+        with gr.Tab("📡 Señales"):
+            gr.Markdown("**Qué operar hoy**: corre el score del Veredicto sobre tu watchlist → "
+                        "ranking COMPRAR/MANTENER/VENDER. Entrada del bucle de ejecución (sizing "
+                        "→ Alpaca paper → diario). Rápido (sin Prophet).")
+            with gr.Row():
+                tse = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                 label="Watchlist (coma)", scale=4)
+                use = gr.Slider(0.1, 0.6, value=0.35, step=0.05, label="Umbral señal")
+                fse = gr.Checkbox(value=False, label="Añadir factores")
+                bse = gr.Button("Generar señales", variant="primary")
+            mdse = gr.Markdown()
+            tbse = gr.Dataframe(label="Ranking de señales", wrap=True)
+            bse.click(tab_senales_sistema, [tse, use, fse], [tbse, mdse])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

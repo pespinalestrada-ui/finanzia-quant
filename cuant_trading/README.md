@@ -18,7 +18,7 @@ pandas/numpy/matplotlib/scipy). Datos de Yahoo Finance (retardo ~15 min, fin de 
 | [`portfolio_optimizer/`](portfolio_optimizer/) | Markowitz: máx Sharpe + frontera eficiente | `python portfolio_optimizer.py AAPL MSFT NVDA --save` |
 | [`correlation/`](correlation/) | Matriz de correlación + diversificación | `python correlation.py AAPL TLT GLD --save` |
 | [`signal_scanner/`](signal_scanner/) | Señales accionables BUY/SELL (cruces, RSI, breakouts) | `python signal_scanner.py AAPL SAB.MC --only-actionable` |
-| [`sentiment/`](sentiment/) | Sentimiento de noticias con FinBERT + NER (decaimiento temporal) | `python sentiment_news.py AAPL` |
+| [`sentiment/`](sentiment/) | Sentimiento FinBERT + NER, **noticias multi-fuente sin clave** (Yahoo + Google News + yfinance) con decaimiento temporal | `python sentiment_news.py AAPL` · `python news_feeds.py SAB.MC` |
 | [`market_context/`](market_context/) | Fear & Greed (bolsa+cripto), VIX, fundamentales | `python market_context.py SAB.MC` |
 | [`journal/`](journal/) | Diario de paper-trading para medir expectancy real | `python journal.py` |
 | [`autogluon_forecast/`](autogluon_forecast/) | Forecast AutoML (AutoGluon/Chronos) | `python autogluon_forecast.py SAB.MC` |

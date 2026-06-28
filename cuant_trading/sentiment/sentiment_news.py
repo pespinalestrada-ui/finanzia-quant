@@ -55,29 +55,39 @@ def cargar_modelos():
 
 
 def extraer_noticias(ticker_symbol, max_news=10):
-    """Noticias de yfinance normalizadas a [{'fecha','titular'}]. Soporta formato viejo y nuevo."""
+    """Noticias normalizadas a [{'fecha','titular','fuente'}].
+
+    Usa el agregador multi-fuente (Yahoo RSS + Google News RSS + yfinance), gratis y
+    sin clave. Si falla, recurre a yfinance solo (comportamiento antiguo).
+    """
+    try:
+        from news_feeds import obtener_noticias
+        agg = obtener_noticias(ticker_symbol, max_news)
+        if agg:
+            return agg
+    except Exception:
+        pass
+    # fallback: solo yfinance (formato viejo y nuevo)
     import yfinance as yf
-    tk = yf.Ticker(ticker_symbol)
-    raw = tk.news or []
+    raw = (yf.Ticker(ticker_symbol).news or [])
     out = []
     for item in raw[:max_news]:
-        # formato nuevo (yfinance >= 0.2.50): anidado en 'content'
         content = item.get("content", item)
         titular = content.get("title")
         if not titular:
             continue
         fecha = None
         pub = content.get("pubDate") or content.get("displayTime")
-        if pub:  # ISO 8601
+        if pub:
             try:
                 fecha = datetime.fromisoformat(pub.replace("Z", "+00:00")).date()
             except ValueError:
                 pass
-        if fecha is None:  # formato viejo: epoch en providerPublishTime
+        if fecha is None:
             ts = item.get("providerPublishTime")
             if ts:
                 fecha = datetime.fromtimestamp(ts, tz=timezone.utc).date()
-        out.append({"fecha": fecha, "titular": titular})
+        out.append({"fecha": fecha, "titular": titular, "fuente": "yfinance"})
     return out
 
 
@@ -92,6 +102,7 @@ def analizar(noticias):
         entidades = ", ".join(dict.fromkeys(e["word"] for e in ents)) or "—"
         rows.append({
             "Fecha": n["fecha"].isoformat() if n["fecha"] else "—",
+            "Fuente": n.get("fuente", "—").split("/")[0],
             "Titular": titular[:90] + ("…" if len(titular) > 90 else ""),
             "Sentimiento": s["label"],
             "Conf": round(float(s["score"]), 2),
@@ -100,12 +111,37 @@ def analizar(noticias):
     return pd.DataFrame(rows)
 
 
+import math
+
 def score_global(df):
-    """Score agregado en [-1, +1]: (positivas − negativas) / total, ponderado por confianza."""
+    """Score agregado en [-1, +1]: ponderado por confianza y decaimiento exponencial (noticias viejas pesan menos)."""
     if df.empty:
         return 0.0, "SIN DATOS"
     w = {"positive": 1, "negative": -1, "neutral": 0}
-    s = sum(w.get(r["Sentimiento"], 0) * r["Conf"] for _, r in df.iterrows()) / len(df)
+    
+    suma_scores = 0.0
+    suma_pesos = 0.0
+    
+    from datetime import date
+    hoy = date.today()
+    
+    for _, r in df.iterrows():
+        dias_antiguedad = 0
+        if r["Fecha"] != "—":
+            try:
+                fecha_obj = date.fromisoformat(r["Fecha"])
+                dias_antiguedad = max(0, (hoy - fecha_obj).days)
+            except Exception:
+                pass
+        
+        # lambda = 0.15 -> la vida media de una noticia es ~4.6 días
+        peso_tiempo = math.exp(-0.15 * dias_antiguedad)
+        peso_total = r["Conf"] * peso_tiempo
+        
+        suma_scores += w.get(r["Sentimiento"], 0) * peso_total
+        suma_pesos += peso_total
+        
+    s = suma_scores / suma_pesos if suma_pesos > 0 else 0.0
     veredicto = ("POSITIVO" if s > 0.15 else "NEGATIVO" if s < -0.15 else "NEUTRAL")
     return round(s, 3), veredicto
 

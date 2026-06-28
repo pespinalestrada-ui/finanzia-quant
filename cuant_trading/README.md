@@ -18,8 +18,19 @@ pandas/numpy/matplotlib/scipy). Datos de Yahoo Finance (retardo ~15 min, fin de 
 | [`portfolio_optimizer/`](portfolio_optimizer/) | Markowitz: máx Sharpe + frontera eficiente | `python portfolio_optimizer.py AAPL MSFT NVDA --save` |
 | [`correlation/`](correlation/) | Matriz de correlación + diversificación | `python correlation.py AAPL TLT GLD --save` |
 | [`signal_scanner/`](signal_scanner/) | Señales accionables BUY/SELL (cruces, RSI, breakouts) | `python signal_scanner.py AAPL SAB.MC --only-actionable` |
-| [`sentiment/`](sentiment/) | Sentimiento de noticias con FinBERT + NER | `python sentiment_news.py AAPL` |
-| [`dashboard/`](dashboard/) | **UI web única con las 9 funciones** (9 pestañas) | `python dashboard.py` → http://127.0.0.1:7862 |
+| [`sentiment/`](sentiment/) | Sentimiento de noticias con FinBERT + NER (decaimiento temporal) | `python sentiment_news.py AAPL` |
+| [`market_context/`](market_context/) | Fear & Greed (bolsa+cripto), VIX, fundamentales | `python market_context.py SAB.MC` |
+| [`journal/`](journal/) | Diario de paper-trading para medir expectancy real | `python journal.py` |
+| [`autogluon_forecast/`](autogluon_forecast/) | Forecast AutoML (AutoGluon/Chronos) | `python autogluon_forecast.py SAB.MC` |
+| [`lstm_forecast/`](lstm_forecast/) | Forecast con red LSTM (PyTorch), bandas OOS | `python lstm_forecast.py SAB.MC` |
+| [`neuralprophet_forecast/`](neuralprophet_forecast/) | Forecast NeuralProphet (AR-Net) | `python neuralprophet_forecast.py SAB.MC` |
+| [`backtest_forecast/`](backtest_forecast/) | Mide si el forecast bate al azar (DA, Theil U2, cobertura) | `python backtest_forecast.py AAPL SAB.MC` |
+| [`alpha_forecast/`](alpha_forecast/) | Dirección corto plazo (ML+Hurst) + volatilidad GARCH, con test de significancia | `python alpha_forecast.py MSFT` |
+| [`conformal_forecast/`](conformal_forecast/) | Bandas **calibradas** (split conformal) con cobertura medida | `python conformal_forecast.py SAB.MC` |
+| [`opa_spread/`](opa_spread/) | Spread de arbitraje de la OPA BBVA→Sabadell + prob. de éxito | `python opa_spread.py` |
+| [`risk_metrics/`](risk_metrics/) | VaR/CVaR/drawdown/correlación de cartera | `python risk_metrics.py SAB.MC BBVA.MC IBE.MC` |
+| [`alerts/`](alerts/) | Vigilancia de watchlist (RSI, vol, cruces, extremos) + log | `python alerts.py SAB.MC AAPL MSFT` |
+| [`dashboard/`](dashboard/) | **UI web única con todas las funciones** (16 pestañas, incl. ★ Veredicto) | `python dashboard.py` → http://127.0.0.1:7862 |
 
 **Atajo Windows:** doble clic en `Lanzar_Dashboard.bat` (raíz del proyecto) — si el
 dashboard ya corre solo abre el navegador; si no, lo arranca.

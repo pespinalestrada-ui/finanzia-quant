@@ -32,7 +32,9 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "backtester", SUITE / "correlation", SUITE / "portfolio_optimizer",
           SUITE / "signal_scanner", SUITE / "sentiment", SUITE / "position_sizer",
           SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context",
-          SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast"]:
+          SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
+          SUITE / "alpha_forecast", SUITE / "conformal_forecast",
+          SUITE / "opa_spread", SUITE / "risk_metrics", SUITE / "alerts"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -48,12 +50,21 @@ import journal as JR
 import market_context as MC
 
 
+import time as _time
+_DL_CACHE = {}                                 # (ticker,period) -> (ts, df). TTL en proceso.
+_DL_TTL = 1800                                 # 30 min: evita re-descargar el mismo ticker entre pestañas
+
 def _dl(ticker, period="1y"):
+    key = (ticker.upper(), period)
+    hit = _DL_CACHE.get(key)
+    if hit and (_time.time() - hit[0]) < _DL_TTL:
+        return hit[1].copy()
     h = yf.Ticker(ticker).history(period=period, auto_adjust=False)
     if h.empty:
         raise ValueError(f"Ticker '{ticker}' sin datos.")
     h = h.reset_index()
     h["Date"] = pd.to_datetime(h["Date"]).dt.tz_localize(None)
+    _DL_CACHE[key] = (_time.time(), h.copy())
     return h
 
 
@@ -214,8 +225,11 @@ def tab_cartera(txt, period, rf):
         wmv = minimize(lambda w: perf(w)[1], w0, method="SLSQP", bounds=bnds, constraints=cons).x
         def blk(nm, w):
             r, v = perf(w); s = (r-rf)/v
+            port_rets = rets @ w
+            var_95 = np.percentile(port_rets, 5) * 100
+            cvar_95 = port_rets[port_rets <= np.percentile(port_rets, 5)].mean() * 100
             ps = " · ".join(f"{n_}:{wi*100:.0f}%" for n_, wi in sorted(zip(names,w), key=lambda x:-x[1]) if wi>0.005)
-            return f"**{nm}** — ret {r*100:.1f}% · vol {v*100:.1f}% · Sharpe {s:.2f}\n\n{ps}"
+            return f"**{nm}** — ret {r*100:.1f}% · vol {v*100:.1f}% · Sharpe {s:.2f} · **VaR 95%:** {var_95:+.2f}% · **CVaR:** {cvar_95:+.2f}%\n\n{ps}"
         txt_out = blk("Máximo Sharpe", wsh) + "\n\n" + blk("Mínima volatilidad", wmv)
         rng = np.random.default_rng(42); N=3000
         W = rng.random((N,n)); W/=W.sum(axis=1,keepdims=True)
@@ -314,6 +328,18 @@ def _var90_de_tabla(tab):
     return float(tab.iloc[min(1, len(tab) - 1)]["Variación %"])
 
 
+def _mape_de_tabla(tab):
+    """Saca el MAPE del horizonte 90d de la tabla para ponderación OOS."""
+    for _, r in tab.iterrows():
+        if "90" in str(r.get("Horizonte", "")):
+            val = str(r.get("MAPE backtest %", "10.0")).replace("%", "").strip()
+            try:
+                return float(val) if val != "n/d" else 10.0
+            except ValueError:
+                return 10.0
+    return 10.0
+
+
 def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
     """
     Agrega forecast (consenso multi-modelo opcional) + batería técnica completa
@@ -328,19 +354,20 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         # --- 1. Forecast: Prophet siempre; consenso multi-modelo si se pide -----
         fig, tabla_fc, _informe, meta = forecast_tool.forecast(ticker, period=period)
         prophet_var = _var90_de_tabla(tabla_fc)
+        prophet_mape = _mape_de_tabla(tabla_fc)
         conf_str = str(tabla_fc.iloc[1]["Confianza"])         # "ALTA (76)"
         try:
             conf = int(conf_str.split("(")[1].rstrip(")"))
         except Exception:
             conf = 50
-        modelos = [("Prophet", prophet_var)]
+        modelos = [("Prophet", prophet_var, prophet_mape)]
 
         if con_modelos:
             # LSTM (torch ya cargado)
             try:
                 import lstm_forecast as LF
                 _f, lf_tab, _m = LF.forecast(ticker, period, horizon=120)
-                modelos.append(("LSTM", _var90_de_tabla(lf_tab)))
+                modelos.append(("LSTM", _var90_de_tabla(lf_tab), _mape_de_tabla(lf_tab)))
             except Exception:
                 pass
             # NeuralProphet (solo si instalado)
@@ -349,7 +376,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
                 try:
                     import neuralprophet_forecast as NPF
                     _f, np_tab, _m = NPF.forecast(ticker, period, horizon=120, epochs=50)
-                    modelos.append(("NeuralProphet", _var90_de_tabla(np_tab)))
+                    modelos.append(("NeuralProphet", _var90_de_tabla(np_tab), _mape_de_tabla(np_tab)))
                 except Exception:
                     pass
             # AutoGluon (solo si instalado)
@@ -359,34 +386,30 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
                     dfa = AG.descargar(ticker, period)
                     preds, _lb = AG.entrenar_y_predecir(dfa, horizon=120, preset="fast_training", time_limit=90)
                     ag_tab, _px = AG.resumen(preds, dfa, horizontes=(30, 90, 120))
-                    modelos.append(("AutoGluon", _var90_de_tabla(ag_tab)))
+                    modelos.append(("AutoGluon", _var90_de_tabla(ag_tab), _mape_de_tabla(ag_tab)))
                 except Exception:
                     pass
 
-        # Señal base = Prophet (con fuerza, como el modo rápido)
-        prophet_score = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
+        # Ensemble ponderado por Skill OOS (1/MAPE)
         if len(modelos) == 1:
+            prophet_score = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
             s_fc = prophet_score
             lect_fc = f"{prophet_var:+.1f} % · confianza {conf_str}"
         else:
-            # Los demás modelos CONFIRMAN o TEMPERAN la señal de Prophet (no la diluyen).
-            # Solo cuentan votos con movimiento relevante (>0.5%); los planos no penalizan.
-            sig_p = 1 if prophet_var > 0 else -1
-            otros = [v for n, v in modelos[1:]]
-            confirman = sum(1 for v in otros if abs(v) > 0.5 and (1 if v > 0 else -1) == sig_p)
-            contradicen = sum(1 for v in otros if abs(v) > 0.5 and (1 if v > 0 else -1) != sig_p)
-            n_otros = len(otros)
-            consenso = (confirman - contradicen) / n_otros if n_otros else 0.0   # [-1, +1]
-            # confirma → amplifica hasta +40%; contradice → reduce hasta -60% (no invierte)
-            factor = 1.0 + (0.4 * consenso if consenso >= 0 else 0.6 * consenso)
-            s_fc = max(-1.0, min(1.0, prophet_score * max(0.0, factor)))
-            acuerdo_pct = int((confirman / n_otros * 100)) if n_otros else 0
-            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v in modelos) + f" · {confirman}/{n_otros} confirman Prophet"
-            tag = ("✅ confirman" if consenso > 0.3 else "⚠️ contradicen" if consenso < -0.3 else "≈ mixtos")
-            notas_modelos = (f"\n\n**Consenso de {len(modelos)} modelos:** los otros {tag} la dirección de Prophet "
-                             f"({confirman} a favor, {contradicen} en contra). "
-                             f"La señal de Prophet se {'refuerza' if consenso>0 else 'tempera' if consenso<0 else 'mantiene'}.")
-        pilares.append(("Forecast 90d" + (" (Prophet + consenso)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
+            pesos = []
+            var_pond = []
+            for n, v, mape in modelos:
+                peso = 1.0 / max(0.5, mape)  # evitar división por cero
+                pesos.append(peso)
+                var_pond.append(v * peso)
+            
+            suma_pesos = sum(pesos)
+            var_ensemble = sum(var_pond) / suma_pesos
+            
+            s_fc = max(-1.0, min(1.0, var_ensemble / 10.0)) * conf / 100.0
+            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v, _ in modelos) + f" → Ensemble: {var_ensemble:+.1f}%"
+            notas_modelos = f"\n\n**Ensemble OOS ({len(modelos)} modelos):** Ponderado inversamente por el error reciente de cada modelo (1/MAPE). Predicción combinada direccional: {var_ensemble:+.2f}%."
+        pilares.append(("Forecast 90d" + (" (OOS Ensemble)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
 
         # --- 2. Técnicos sobre 1 año (con OHLCV completo) -----------------------
         dfh = _dl(ticker, "1y")
@@ -403,6 +426,9 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         adx_v = float(last["ADX"]); dir_adx = 1 if last["DI_POS"] > last["DI_NEG"] else -1
         s_adx = dir_adx * 0.7 if adx_v > 25 else 0.0
         pilares.append(("ADX (fuerza tendencia)", f"{adx_v:.0f} ({'FUERTE ' + ('alcista' if dir_adx>0 else 'bajista') if adx_v>25 else 'débil/lateral'})", s_adx, 0.08))
+
+        # Hurst: detección de régimen
+        hurst_v = last.get("HURST", float("nan"))
 
         # Consenso de osciladores: RSI + Estocástico + Williams%R + MFI + CCI
         votos = []
@@ -446,12 +472,46 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         # --- agregación ponderada ----------------------------------------------
         wsum = sum(p[3] for p in pilares)
         total = sum(p[2] * p[3] for p in pilares) / wsum
-        if total >= 0.35:
+
+        # Filtro de Régimen: bloquea señales en mercados laterales
+        en_rango = False
+        razon_rango = ""
+        if not np.isnan(hurst_v) and 0.40 < hurst_v < 0.55 and adx_v < 25:
+            en_rango = True
+            razon_rango = f"Filtro de Régimen ACTIVO: Hurst={hurst_v:.2f} (paseo aleatorio) y ADX={adx_v:.0f} (<25). "
+
+        if en_rango:
+            verd, emoji = "MANTENER", "🟡"
+            notas_modelos += f"\n\n> ⚠️ **{razon_rango}** Forzando veredicto a MANTENER por falta de tendencia direccional."
+        elif total >= 0.35:
             verd, emoji = "COMPRAR", "🟢"
         elif total <= -0.35:
             verd, emoji = "VENDER", "🔴"
         else:
             verd, emoji = "MANTENER", "🟡"
+
+        # --- Auto-Logging -----------------------------------------------------
+        nota_log = ""
+        if verd in ["COMPRAR", "VENDER"]:
+            try:
+                # Usa posición base 10k, objetivo 15% volatilidad
+                vol_anual = PS.garch_volatility(ticker)
+                atr, px_atr = PS.atr_actual(ticker)
+                stop = px - 2 * atr if verd == "COMPRAR" else px + 2 * atr
+                r_accion = abs(px - stop)
+                
+                if not np.isnan(vol_anual) and vol_anual > 0:
+                    weight = 0.15 / vol_anual
+                    coste_obj = 10000 * weight
+                    shares = max(1, int(coste_obj // px))
+                else:
+                    riesgo_eur = 10000 * 0.01
+                    shares = max(1, int(riesgo_eur // r_accion))
+                
+                nid = JR.abrir(ticker, px, stop, shares, f"Auto-Veredicto: {verd} (Score {total:+.2f})", "SHORT" if verd == "VENDER" else "LONG")
+                nota_log = f"\n\n✅ **Auto-Logging:** Operación #{nid} registrada automáticamente en el Diario (simulada) para medir expectancy."
+            except Exception as ej:
+                nota_log = f"\n\n⚠️ Error al auto-registrar en Diario: {ej}"
 
         tabla = pd.DataFrame(
             [{"Pilar": n, "Lectura": l, "Score": round(s, 2),
@@ -470,6 +530,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
               f"{len(pilares)} pilares"
               + (f" · *({', '.join(extras)})*" if extras else "")
               + notas_modelos
+              + nota_log
               + "\n\n> ⚠️ Estimación estadística automática (forecast + batería técnica + volumen"
               + (" + sentimiento" if con_sentimiento else "")
               + "). **NO es recomendación de inversión.** Resumen, no orden.")
@@ -530,6 +591,96 @@ def tab_mercado(ticker):
         return md, comp, fund
     except Exception as e:
         return f"**Error:** {e}", pd.DataFrame(), pd.DataFrame()
+
+
+# ---- 13. Alpha: dirección corto plazo (ML) + volatilidad (GARCH) ------------
+def tab_alpha(ticker, horizon, period):
+    try:
+        import alpha_forecast as AF
+        ticker = ticker.strip().upper()
+        df = AF.descargar(ticker, period)
+        d = AF.backtest_direccion(df, int(horizon))
+        if d is None:
+            return f"**{ticker}:** histórico insuficiente para el backtest direccional."
+        bate = "**SÍ** bate al azar ✅" if d["pval"] < 0.05 else "**NO** bate al azar"
+        lineas = [f"## {ticker} — dirección a {int(horizon)} días (ML, walk-forward purgado)\n",
+                  f"- **Acierto direccional:** {d['da']*100:.1f}%  (N={d['N']})",
+                  f"- **Significancia:** z={d['z']:+.2f}, p={d['pval']:.3f} → {bate}",
+                  f"- **AUC:** {d['auc']:.3f}  (0.5 = azar)"]
+        if not np.isnan(d["da_conv"]):
+            lineas.append(f"- **Acierto en señales de alta convicción:** {d['da_conv']*100:.1f}% ({d['n_conv']} señales)")
+        g = AF.backtest_volatilidad(df)
+        if g:
+            lect = ("predecible (modesto)" if g["corr"] > 0.2 else "débilmente predecible" if g["corr"] > 0.08 else "sin predictibilidad clara")
+            lineas.append(f"- **Volatilidad GARCH(1,1):** corr(vol_pred, |ret|) = {g['corr']:.2f} → {lect}")
+        lineas.append("\n> LightGBM + features leak-free + Hurst + embargo (López de Prado). "
+                      "Mide si hay ventaja REAL; si p≥0.05 no la hay (eficiencia de mercado). **No es recomendación.**")
+        return "\n".join(lineas)
+    except Exception as e:
+        return f"**Error:** {e}"
+
+
+# ---- 14. Conformal: bandas CALIBRADAS --------------------------------------
+def tab_conformal(ticker, period):
+    try:
+        import conformal_forecast as CF
+        fig, tabla, meta = CF.forecast(ticker.strip().upper(), period=period, n_origenes=25)
+        cob = meta.get("cobertura_media")
+        md = (f"### {ticker.upper()} — banda {meta['objetivo']}% CALIBRADA (split conformal)\n"
+              f"Precio {meta['precio_actual']:.3f} · {meta['n']} sesiones · "
+              f"**cobertura real medida ≈ {cob:.0f}%** (objetivo {meta['objetivo']}%).\n\n"
+              f"> La banda se calibra con los errores reales del walk-forward y se MIDE su "
+              f"cobertura. Arregla la banda de Prophet, que solo cubría 14-29% real. "
+              f"No es recomendación.")
+        return fig, tabla, md
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
+
+
+# ---- 15. OPA spread: arbitraje de fusión BBVA→Sabadell ----------------------
+def tab_opa(canje, efectivo, period, fracaso):
+    try:
+        import opa_spread as OS
+        pf = float(fracaso) if fracaso not in (None, "", 0) else None
+        fig, tabla, meta, texto = OS.forecast(float(canje), float(efectivo), period, precio_fracaso=pf)
+        prob = meta["prob_exito"]
+        md = (f"### OPA BBVA → Sabadell · spread de arbitraje\n"
+              f"Spread hoy **{meta['spread_hoy']:+.2f}%** · "
+              f"prob. implícita de éxito **{prob*100:.0f}%**" if not np.isnan(prob) else "n/d")
+        md += f"\n\n**Lectura:** {texto}\n\n> Términos del canje ajustables. NO es asesoramiento."
+        return fig, tabla, md
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
+
+
+# ---- 16. Riesgo de cartera: VaR/CVaR/drawdown/correlación -------------------
+def tab_riesgo(txt, period, conf):
+    try:
+        import risk_metrics as RM
+        tickers = _parse(txt)
+        if not tickers:
+            return _err_fig("Mete tickers."), pd.DataFrame(), pd.DataFrame()
+        fig, tabla, corr, meta = RM.forecast(tickers, period, float(conf))
+        return fig, tabla, corr
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), pd.DataFrame(), pd.DataFrame()
+
+
+# ---- 17. Alertas de watchlist ----------------------------------------------
+def tab_alertas(txt):
+    try:
+        import alerts as AL
+        tickers = _parse(txt)
+        if not tickers:
+            return pd.DataFrame(), "Mete tickers en la watchlist."
+        filas = AL.escanear(tickers)
+        if not filas:
+            return pd.DataFrame(), f"Sin alertas ahora mismo en {len(tickers)} tickers."
+        df = pd.DataFrame([{"Ticker": t, "Precio": round(p, 3), "Tipo": cat, "Aviso": txt2}
+                           for t, p, cat, txt2 in filas])
+        return df, f"**{len(df)} alertas** en {len(tickers)} tickers."
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
 
 
 # ---- UI -------------------------------------------------------------------
@@ -667,6 +818,65 @@ def build():
                 tbm1 = gr.Dataframe(label="Componentes Fear & Greed", wrap=True)
                 tbm2 = gr.Dataframe(label="Fundamentales", wrap=True)
             bm.click(tab_mercado, [tm], [mdm, tbm1, tbm2])
+        with gr.Tab("🎯 Alpha (rigor)"):
+            gr.Markdown("**¿Hay ventaja REAL?** Dirección a corto plazo con ML (LightGBM + features "
+                        "leak-free + Hurst, walk-forward purgado) + volatilidad GARCH. Mide con test de "
+                        "significancia si el modelo bate al azar. Tarda ~1-2 min (reentrena en cada corte).")
+            with gr.Row():
+                ta = gr.Textbox(value="MSFT", label="Ticker", scale=3)
+                ha = gr.Dropdown([3, 5, 10], value=5, label="Días (dirección)")
+                pa = gr.Dropdown(["5y", "8y", "10y"], value="8y", label="Histórico")
+                ba = gr.Button("Medir ventaja", variant="primary")
+            mda = gr.Markdown()
+            ba.click(tab_alpha, [ta, ha, pa], [mda])
+        with gr.Tab("📏 Conformal"):
+            gr.Markdown("**Banda CALIBRADA** (split conformal). Arregla la banda de Prophet "
+                        "(que solo cubría 14-29% real): aquí el radio se calibra con los errores "
+                        "del walk-forward y se MIDE la cobertura. Tarda ~30-60 s.")
+            with gr.Row():
+                tc = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
+                pc = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                bc = gr.Button("Calibrar banda", variant="primary")
+            mdc = gr.Markdown()
+            figc = gr.Plot()
+            tblc = gr.Dataframe(wrap=True)
+            bc.click(tab_conformal, [tc, pc], [figc, tblc, mdc])
+        with gr.Tab("⚔️ OPA BBVA-SAB"):
+            gr.Markdown("**Spread de arbitraje de la OPA** (ángulo diferencial del proyecto). "
+                        "Precio SAB vs valor implícito de la oferta BBVA + prob. de éxito. "
+                        "Ajusta el canje a los términos vigentes.")
+            with gr.Row():
+                oc = gr.Number(value=4.83, label="Canje (SAB por 1 BBVA)")
+                oe = gr.Number(value=0.0, label="Efectivo €/SAB")
+                op = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                of = gr.Number(value=0.0, label="Precio fracaso (0=auto)")
+                bo = gr.Button("Calcular spread", variant="primary")
+            mdo = gr.Markdown()
+            figo = gr.Plot()
+            tblo = gr.Dataframe(wrap=True)
+            bo.click(tab_opa, [oc, oe, op, of], [figo, tblo, mdo])
+        with gr.Tab("🛡️ Riesgo"):
+            gr.Markdown("**Riesgo de cartera**: VaR/CVaR históricos, máximo drawdown y "
+                        "correlación. Mide lo que SÍ es estimable (riesgo), no la dirección.")
+            with gr.Row():
+                tr = gr.Textbox(value="SAB.MC, BBVA.MC, IBE.MC", label="Watchlist (coma)", scale=3)
+                pr = gr.Dropdown(["1y", "3y", "5y"], value="3y", label="Histórico")
+                cr = gr.Dropdown([0.95, 0.99], value=0.95, label="Confianza VaR")
+                br = gr.Button("Medir riesgo", variant="primary")
+            figr = gr.Plot()
+            with gr.Row():
+                tblr = gr.Dataframe(label="VaR / CVaR / Drawdown", wrap=True)
+                corrr = gr.Dataframe(label="Correlación", wrap=True)
+            br.click(tab_riesgo, [tr, pr, cr], [figr, tblr, corrr])
+        with gr.Tab("🔔 Alertas"):
+            gr.Markdown("**Vigilancia de watchlist**: RSI extremo, pico de volatilidad, "
+                        "movimiento brusco, cruce de SMA50, proximidad a máx/mín 52s.")
+            with gr.Row():
+                tal = gr.Textbox(value="SAB.MC, BBVA.MC, AAPL, MSFT, NVDA", label="Watchlist (coma)", scale=4)
+                bal = gr.Button("Escanear", variant="primary")
+            mdal = gr.Markdown()
+            tblal = gr.Dataframe(wrap=True)
+            bal.click(tab_alertas, [tal], [tblal, mdal])
     return app
 
 

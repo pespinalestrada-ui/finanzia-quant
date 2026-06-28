@@ -38,7 +38,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
           SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator",
           SUITE / "performance", SUITE / "pairs_trading", SUITE / "hrp_portfolio",
-          SUITE / "evt_risk", SUITE / "montecarlo"]:
+          SUITE / "evt_risk", SUITE / "montecarlo", SUITE / "system_backtest"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -855,6 +855,21 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 27. Backtest de la estrategia completa --------------------------------
+def tab_system_backtest(txt, top_n, rebal, coste_bps, period):
+    try:
+        import system_backtest as SB
+        tickers = _parse(txt)
+        if len(tickers) < 2:
+            return _err_fig("Mete ≥2 tickers."), "Mete al menos 2 tickers."
+        res = SB.backtest(tickers, period, int(top_n), int(rebal), float(coste_bps))
+        if res is None:
+            return _err_fig("Datos insuficientes."), "Datos insuficientes."
+        return SB._plot(res), "```\n" + SB.informe(res) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
 # ---- 26. Monte Carlo (precio + sistema) ------------------------------------
 def tab_mc_precio(ticker, horizon, metodo):
     try:
@@ -1279,6 +1294,21 @@ def build():
             mdmc2 = gr.Markdown()
             figmc2 = gr.Plot()
             bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
+        with gr.Tab("📊 Backtest Sistema"):
+            gr.Markdown("**Backtest de la estrategia completa** sobre el histórico: compra el "
+                        "**top-N** por score del Veredicto, rebalancea, **resta costes**, y compara "
+                        "con **SPY** buy & hold. Un backtest que bate a SPY mide, no promete.")
+            with gr.Row():
+                tsb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                 label="Universo (coma)", scale=3)
+                nsb = gr.Dropdown([2, 3, 4, 5], value=3, label="Top-N")
+                rsb = gr.Dropdown([5, 10, 21, 42], value=21, label="Rebal (días)")
+                csb = gr.Number(value=10, label="Coste bps")
+                psb = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                bsb = gr.Button("Backtestear", variant="primary")
+            mdsb = gr.Markdown()
+            figsb = gr.Plot()
+            bsb.click(tab_system_backtest, [tsb, nsb, rsb, csb, psb], [figsb, mdsb])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

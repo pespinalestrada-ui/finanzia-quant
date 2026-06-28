@@ -36,7 +36,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
-          SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator"]:
+          SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator",
+          SUITE / "performance"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -853,6 +854,19 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 24. Monitor de rendimiento vs benchmark -------------------------------
+def tab_rendimiento(capital, benchmark):
+    try:
+        import performance as PF
+        res = PF.analizar(float(capital), benchmark.strip().upper() or "SPY")
+        if res.get("n", 0) == 0:
+            return _err_fig(res.get("mensaje", "")), "```\n" + res.get("mensaje", "") + "\n```"
+        fig = PF._plot(res)
+        return fig, "```\n" + PF.informe(res) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
 # ---- 23. Orquestador del sistema (plan + ejecución paper) -------------------
 def tab_sistema_plan(txt, capital, tv, mp, umbral):
     try:
@@ -1121,6 +1135,17 @@ def build():
             tbsy = gr.Dataframe(label="Plan / Resultado", wrap=True)
             bsy1.click(tab_sistema_plan, [tsy, csy, vsy, msy, usy], [tbsy, mdsy])
             bsy2.click(tab_sistema_ejecutar, [tsy, csy, vsy, msy, usy, conf], [tbsy, mdsy])
+        with gr.Tab("📈 Rendimiento"):
+            gr.Markdown("**¿Bates al mercado?** Curva de equity del diario + métricas "
+                        "(win rate, profit factor, expectancy, drawdown) y comparación **vs SPY** "
+                        "(comprar y mantener). El listón honesto: si no bates a indexarte, mejor indexarse.")
+            with gr.Row():
+                cpf = gr.Number(value=10000, label="Capital inicial €")
+                bpf_t = gr.Textbox(value="SPY", label="Benchmark", scale=2)
+                bpf = gr.Button("Medir rendimiento", variant="primary")
+            mdpf = gr.Markdown()
+            figpf = gr.Plot()
+            bpf.click(tab_rendimiento, [cpf, bpf_t], [figpf, mdpf])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

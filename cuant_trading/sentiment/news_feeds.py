@@ -26,14 +26,45 @@ except Exception:
 import warnings
 warnings.filterwarnings("ignore")
 
+import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import requests
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; FinanzIA/1.0)"}
 _NOMBRE_CACHE = {}
+_ENV_CARGADO = False
+
+
+def _cargar_env():
+    """Lee el .env de la raíz del proyecto a os.environ (una vez). Sin dependencias."""
+    global _ENV_CARGADO
+    if _ENV_CARGADO:
+        return
+    _ENV_CARGADO = True
+    env = Path(__file__).resolve().parents[2] / ".env"
+    if not env.exists():
+        return
+    try:
+        for linea in env.read_text(encoding="utf-8").splitlines():
+            linea = linea.strip()
+            if not linea or linea.startswith("#") or "=" not in linea:
+                continue
+            k, v = linea.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if k and v and k not in os.environ:
+                os.environ[k] = v
+    except Exception:
+        pass
+
+
+def _clave(nombre):
+    _cargar_env()
+    v = os.getenv(nombre)
+    return v if v else None
 
 
 def _parse_fecha(pub):
@@ -131,6 +162,91 @@ def _yfinance(ticker, max_news):
     return out
 
 
+def _alphavantage(ticker, max_news):
+    """Alpha Vantage NEWS_SENTIMENT (clave gratis). Noticias con sentimiento; aquí solo título+fecha."""
+    key = _clave("ALPHAVANTAGE_KEY")
+    if not key:
+        return []
+    sym = ticker.upper().split(".")[0]                # AV usa símbolos US (sin sufijo .MC)
+    url = ("https://www.alphavantage.co/query?function=NEWS_SENTIMENT"
+           f"&tickers={sym}&sort=LATEST&limit={max(5, max_news)}&apikey={key}")
+    out = []
+    try:
+        d = requests.get(url, headers=UA, timeout=10).json()
+        for it in (d.get("feed") or [])[:max_news]:
+            tit = (it.get("title") or "").strip()
+            if not tit:
+                continue
+            f = None
+            tp = it.get("time_published")             # 'YYYYMMDDTHHMMSS'
+            if tp:
+                try:
+                    f = datetime.strptime(tp[:8], "%Y%m%d").date()
+                except Exception:
+                    pass
+            out.append({"fecha": f, "titular": tit, "fuente": "AlphaVantage"})
+    except Exception:
+        pass
+    return out
+
+
+def _finnhub(ticker, max_news):
+    """Finnhub company-news (clave gratis, 60/min). Últimos ~30 días."""
+    key = _clave("FINNHUB_KEY")
+    if not key:
+        return []
+    hasta = date.today(); desde = hasta - timedelta(days=30)
+    url = (f"https://finnhub.io/api/v1/company-news?symbol={ticker.upper()}"
+           f"&from={desde.isoformat()}&to={hasta.isoformat()}&token={key}")
+    out = []
+    try:
+        arr = requests.get(url, headers=UA, timeout=10).json()
+        if isinstance(arr, list):
+            for it in arr[:max_news]:
+                tit = (it.get("headline") or "").strip()
+                if not tit:
+                    continue
+                f = None
+                ts = it.get("datetime")
+                if ts:
+                    try:
+                        f = datetime.fromtimestamp(int(ts), tz=timezone.utc).date()
+                    except Exception:
+                        pass
+                out.append({"fecha": f, "titular": tit, "fuente": "Finnhub"})
+    except Exception:
+        pass
+    return out
+
+
+def _marketaux(ticker, max_news):
+    """Marketaux (clave gratis, 100/día). Soporta bolsas internacionales (.MC, etc.)."""
+    key = _clave("MARKETAUX_KEY")
+    if not key:
+        return []
+    url = ("https://api.marketaux.com/v1/news/all"
+           f"?symbols={ticker.upper()}&filter_entities=true&language=en&limit={max(3, min(max_news,100))}"
+           f"&api_token={key}")
+    out = []
+    try:
+        d = requests.get(url, headers=UA, timeout=10).json()
+        for it in (d.get("data") or [])[:max_news]:
+            tit = (it.get("title") or "").strip()
+            if not tit:
+                continue
+            f = None
+            pa = it.get("published_at")
+            if pa:
+                try:
+                    f = datetime.fromisoformat(pa.replace("Z", "+00:00")).date()
+                except Exception:
+                    pass
+            out.append({"fecha": f, "titular": tit, "fuente": "Marketaux"})
+    except Exception:
+        pass
+    return out
+
+
 def _norm(t):
     """Normaliza un titular para deduplicar (minúsculas, sin puntuación ni fuente final)."""
     t = re.sub(r"\s+-\s+[^-]+$", "", t)             # quita " - Reuters" final de Google News
@@ -138,9 +254,12 @@ def _norm(t):
 
 
 def obtener_noticias(ticker, max_news=15):
-    """Agrega Yahoo + Google News + yfinance, deduplica y ordena por fecha desc."""
+    """Agrega Yahoo + Google News + yfinance + (si hay clave) AlphaVantage/Finnhub/
+    Marketaux, deduplica y ordena por fecha desc."""
     por_fuente = max(6, max_news)
-    todas = _yahoo(ticker, por_fuente) + _google(ticker, por_fuente) + _yfinance(ticker, por_fuente)
+    todas = (_yahoo(ticker, por_fuente) + _google(ticker, por_fuente) + _yfinance(ticker, por_fuente)
+             + _alphavantage(ticker, por_fuente) + _finnhub(ticker, por_fuente)
+             + _marketaux(ticker, por_fuente))
     vistos, unicas = set(), []
     for n in todas:
         clave = _norm(n["titular"])

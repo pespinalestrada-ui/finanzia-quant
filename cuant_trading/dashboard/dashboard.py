@@ -34,7 +34,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context",
           SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
-          SUITE / "risk_metrics", SUITE / "alerts"]:
+          SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -48,6 +48,7 @@ import sentiment_news as SN                # FinBERT (modelos se cargan en el 1e
 import position_sizer as PS
 import journal as JR
 import market_context as MC
+import factor_scorer as FS               # modelo multi-factor (value/momentum/quality/low-vol)
 
 
 import time as _time
@@ -467,6 +468,15 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
             s_sig = max(-1.0, min(1.0, tech["Fuerza"] / 2.0))
             pilares.append(("Señales técnicas (scanner)", tech["Señales"], s_sig, 0.10))
 
+        # Factores fundamentales (value/momentum/quality/low-vol) — institucional.
+        # Solo acciones: la cripto no tiene PER/ROE. Best-effort (no rompe el veredicto).
+        if not cripto:
+            try:
+                s_fac, lec_fac, _ = FS.score_absoluto(ticker)
+                pilares.append(("Factores (value/mom/quality/low-vol)", lec_fac, s_fac, 0.12))
+            except Exception:
+                pass
+
         # Sentimiento FinBERT (opcional)
         if con_sentimiento:
             noticias = SN.extraer_noticias(ticker, 10)
@@ -687,6 +697,29 @@ def tab_alertas(txt):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 18. Factores: ranking multi-factor de un universo ---------------------
+def tab_factores(txt):
+    try:
+        tickers = _parse(txt)
+        if len(tickers) < 2:
+            return pd.DataFrame(), "Mete **al menos 2** tickers: el ranking es relativo al universo."
+        df = FS.rankear(tickers)
+        cols = ["rank", "ticker", "z_value", "z_momentum", "z_quality", "z_lowvol", "nota", "señal"]
+        out = df[cols].copy()
+        for c in ["z_value", "z_momentum", "z_quality", "z_lowvol", "nota"]:
+            out[c] = out[c].round(2)
+        top, bot = df.iloc[0]["ticker"], df.iloc[-1]["ticker"]
+        md = (f"### Ranking multi-factor ({len(tickers)} acciones)\n"
+              f"**Mejor:** {top} · **Peor:** {bot}. Nota = z-score cruzado ponderado "
+              f"(value 30% · momentum 30% · quality 25% · low-vol 15%).\n\n"
+              f"> Así rankean los fondos cuant/smart-beta. Factores = premios de riesgo de "
+              f"LARGO plazo (Fama-French), no timing. Fundamentales faltantes = neutros. "
+              f"No es recomendación.")
+        return out, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
@@ -883,6 +916,18 @@ def build():
             mdal = gr.Markdown()
             tblal = gr.Dataframe(wrap=True)
             bal.click(tab_alertas, [tal], [tblal, mdal])
+        with gr.Tab("📊 Factores"):
+            gr.Markdown("**Modelo multi-factor (smart beta)** — cómo deciden los fondos cuant "
+                        "qué comprar. Rankea un universo por **value + momentum + quality + low-vol** "
+                        "(z-score cruzado). Compra el top, evita el fondo. Tarda ~1-3 s/acción "
+                        "(descarga fundamentales).")
+            with gr.Row():
+                tf = gr.Textbox(value="AAPL, MSFT, NVDA, JPM, XOM, KO, SAB.MC, ITX.MC",
+                                label="Universo de acciones (coma)", scale=4)
+                bf = gr.Button("Rankear", variant="primary")
+            mdf = gr.Markdown()
+            tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
+            bf.click(tab_factores, [tf], [tblf, mdf])
     return app
 
 

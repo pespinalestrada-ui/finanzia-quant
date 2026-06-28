@@ -35,7 +35,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
-          SUITE / "intraday"]:
+          SUITE / "intraday", SUITE / "alpaca_paper"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -761,6 +761,51 @@ def tab_intraday_backtest(ticker, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+def _alpaca_estado():
+    import alpaca_paper as AP
+    c = AP.cuenta()
+    md = (f"**Cuenta PAPER** · estado {c['estado']} · {c['moneda']}  \n"
+          f"Equity **{c['equity']:,.2f}** · Cash {c['cash']:,.2f} · "
+          f"Buying power {c['buying_power']:,.2f} · P&L día **{c['pnl_dia']:+.2f}**")
+    pos = AP.posiciones()
+    return md, pd.DataFrame(pos) if pos else pd.DataFrame()
+
+
+def tab_alpaca_refrescar():
+    try:
+        import alpaca_paper as AP
+        if not AP.configurada():
+            return "⚠️ Faltan ALPACA_KEY / ALPACA_SECRET en el .env.", pd.DataFrame()
+        return _alpaca_estado()
+    except Exception as e:
+        return f"**Error:** {e}", pd.DataFrame()
+
+
+def tab_alpaca_precio(symbol):
+    try:
+        import alpaca_paper as AP
+        q = AP.cotizacion(symbol)
+        return f"**{q['symbol']}**: {q['precio']:.4f}  (real-time IEX · {q['hora']})"
+    except Exception as e:
+        return f"**Error:** {e}"
+
+
+def tab_alpaca_orden(symbol, qty, lado):
+    """Envía una orden PAPER. La dispara el USUARIO con este botón (no el asistente)."""
+    try:
+        import alpaca_paper as AP
+        if not symbol or float(qty) <= 0:
+            return "Indica símbolo y cantidad > 0.", "", pd.DataFrame()
+        side = "buy" if lado == "Comprar" else "sell"
+        o = AP.enviar_orden(symbol, float(qty), side)
+        msg = (f"✅ Orden PAPER enviada: **{o['side']} {o['qty']} {o['symbol']}** · "
+               f"estado **{o['estado']}** · id `{o['id']}`")
+        estado_md, pos = _alpaca_estado()
+        return msg, estado_md, pos
+    except Exception as e:
+        return f"**Error:** {e}", "", pd.DataFrame()
+
+
 def tab_intraday_scan(txt, interval, or_min, coste_bps):
     try:
         import intraday as IN
@@ -1013,6 +1058,30 @@ def build():
                                  label="Universo (coma)", scale=4)
                 bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
             bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
+        with gr.Tab("🦙 Alpaca Paper"):
+            gr.Markdown("**Paper trading en vivo** (Alpaca · dinero FICTICIO, datos real-time IEX). "
+                        "El salto a 'vivo' sin riesgo. **Las órdenes las envías TÚ** con el botón — "
+                        "el asistente nunca opera por su cuenta. Configura `ALPACA_KEY`/`ALPACA_SECRET` en `.env`.")
+            with gr.Row():
+                bap = gr.Button("🔄 Refrescar cuenta y posiciones", variant="secondary")
+            mdap = gr.Markdown()
+            tblap = gr.Dataframe(label="Posiciones abiertas (paper)", wrap=True)
+            gr.Markdown("**Cotización real-time**")
+            with gr.Row():
+                tapq = gr.Textbox(value="AAPL", label="Símbolo", scale=3)
+                bapq = gr.Button("Precio")
+            mdapq = gr.Markdown()
+            gr.Markdown("---\n**Enviar orden PAPER** (la disparas tú; es dinero ficticio)")
+            with gr.Row():
+                taps = gr.Textbox(value="AAPL", label="Símbolo", scale=2)
+                tapn = gr.Number(value=1, label="Cantidad")
+                tapl = gr.Radio(["Comprar", "Vender"], value="Comprar", label="Lado")
+                bapo = gr.Button("📨 Enviar orden PAPER", variant="primary")
+            mdapo = gr.Markdown()
+            bap.click(tab_alpaca_refrescar, [], [mdap, tblap])
+            bapq.click(tab_alpaca_precio, [tapq], [mdapq])
+            bapo.click(tab_alpaca_orden, [taps, tapn, tapl], [mdapo, mdap, tblap])
+            app.load(tab_alpaca_refrescar, [], [mdap, tblap])
     return app
 
 

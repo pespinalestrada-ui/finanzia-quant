@@ -402,26 +402,24 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
                 except Exception:
                     pass
 
-        # Ensemble ponderado por Skill OOS (1/MAPE)
-        if len(modelos) == 1:
-            prophet_score = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
-            s_fc = prophet_score
-            lect_fc = f"{prophet_var:+.1f} % · confianza {conf_str}"
-        else:
-            pesos = []
-            var_pond = []
-            for n, v, mape in modelos:
-                peso = 1.0 / max(0.5, mape)  # evitar división por cero
-                pesos.append(peso)
-                var_pond.append(v * peso)
-            
-            suma_pesos = sum(pesos)
-            var_ensemble = sum(var_pond) / suma_pesos
-            
-            s_fc = max(-1.0, min(1.0, var_ensemble / 10.0)) * conf / 100.0
-            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v, _ in modelos) + f" → Ensemble: {var_ensemble:+.1f}%"
-            notas_modelos = f"\n\n**Ensemble OOS ({len(modelos)} modelos):** Ponderado inversamente por el error reciente de cada modelo (1/MAPE). Predicción combinada direccional: {var_ensemble:+.2f}%."
-        pilares.append(("Forecast 90d" + (" (OOS Ensemble)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
+        # Pilar Forecast: SIEMPRE Prophet (estable, modelo de cabecera). El multi-modelo
+        # NO cambia el veredicto — solo informa de si los demás coinciden en dirección.
+        # (Antes el ensemble 1/MAPE de 4 forecasts ruidosos a 90d movía el veredicto al
+        #  azar alrededor del umbral: el forecast a 90d no tiene edge validado.)
+        var_fc = prophet_var
+        s_fc = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
+        lect_fc = f"Prophet {prophet_var:+.1f}% · conf {conf_str}"
+        if len(modelos) > 1:
+            otros = [(n, v) for n, v, _ in modelos if n != "Prophet"]
+            acuerdo = sum(1 for _, v in otros if (v > 0) == (prophet_var > 0))
+            lect_fc += " · " + " ".join(f"{n[:4]} {v:+.0f}%" for n, v in otros)
+            notas_modelos = (f"\n\n**Multi-modelo (informativo):** {acuerdo}/{len(otros)} modelos coinciden "
+                             f"en dirección con Prophet. No altera el veredicto — el forecast a 90d no tiene "
+                             f"edge validado, así que mandan técnica y factores. Sirve para ver consenso/disenso.")
+        # peso del forecast PROPORCIONAL a su convicción: un forecast plano (~0%) casi no
+        # participa (evita que dilúya el veredicto); uno fuerte (±5%+) pesa el máximo.
+        w_fc = max(0.06, 0.30 * min(1.0, abs(var_fc) / 5.0))
+        pilares.append(("Forecast 90d (Prophet)", lect_fc + f"  · peso {w_fc*100:.0f}%", s_fc, w_fc))
 
         # --- 2. Técnicos sobre 1 año (con OHLCV completo) -----------------------
         dfh = _dl(ticker, "1y")

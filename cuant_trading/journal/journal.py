@@ -31,7 +31,8 @@ import pandas as pd
 
 CSV = Path(__file__).resolve().parent / "operaciones.csv"
 COLS = ["id", "fecha_apertura", "ticker", "direccion", "entrada", "stop",
-        "acciones", "nota", "fecha_cierre", "salida", "pnl", "r_multiplo", "estado"]
+        "acciones", "nota", "nota_factor", "fecha_cierre", "salida", "pnl",
+        "r_multiplo", "estado"]
 
 
 def _load() -> pd.DataFrame:
@@ -48,8 +49,12 @@ def _save(df: pd.DataFrame):
     df.to_csv(CSV, index=False)
 
 
-def abrir(ticker, entrada, stop, acciones, nota="", direccion="LONG"):
-    """Registra una operación simulada abierta. Devuelve el id asignado."""
+def abrir(ticker, entrada, stop, acciones, nota="", direccion="LONG", nota_factor=None):
+    """Registra una operación simulada abierta. Devuelve el id asignado.
+
+    nota_factor: nota de factores [-1,+1] de la acción al abrir (value/momentum/
+    quality/low-vol). Permite medir luego si las compras 'top factor' rinden más.
+    """
     entrada, stop, acciones = float(entrada), float(stop), int(acciones)
     if direccion == "LONG" and stop >= entrada:
         raise ValueError("En un LONG el stop debe estar por debajo de la entrada.")
@@ -57,10 +62,12 @@ def abrir(ticker, entrada, stop, acciones, nota="", direccion="LONG"):
         raise ValueError("En un SHORT el stop debe estar por encima de la entrada.")
     df = _load()
     nid = int(df["id"].max()) + 1 if len(df) else 1
+    nf = float(nota_factor) if (nota_factor is not None and not pd.isna(nota_factor)) else np.nan
     fila = {
         "id": nid, "fecha_apertura": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "ticker": ticker.upper().strip(), "direccion": direccion,
         "entrada": entrada, "stop": stop, "acciones": acciones, "nota": nota,
+        "nota_factor": round(nf, 3) if not np.isnan(nf) else np.nan,
         "fecha_cierre": "", "salida": np.nan, "pnl": np.nan,
         "r_multiplo": np.nan, "estado": "ABIERTA",
     }
@@ -128,6 +135,52 @@ def estadisticas() -> dict:
     }
 
 
+def estadisticas_por_factor() -> dict:
+    """Compara operaciones cerradas con nota de factores ALTA (>0) vs BAJA (≤0).
+    Responde: ¿mis compras 'top factor' rinden mejor? Devuelve dict o {n:0}."""
+    df = _load()
+    cer = df[(df["estado"] == "CERRADA")].copy()
+    cer["nota_factor"] = pd.to_numeric(cer["nota_factor"], errors="coerce")
+    cer = cer[cer["nota_factor"].notna()]
+    n = len(cer)
+    if n < 4:
+        return {"n": n, "mensaje": f"Solo {n} operaciones cerradas con nota de factor. "
+                                   "Necesitas ~6+ (y varias en cada grupo) para comparar."}
+    r = pd.to_numeric(cer["r_multiplo"], errors="coerce")
+    cer["r"] = r
+    alto = cer[cer["nota_factor"] > 0]
+    bajo = cer[cer["nota_factor"] <= 0]
+
+    def _grp(g):
+        if len(g) == 0:
+            return {"n": 0, "exp_R": None, "win": None}
+        rr = g["r"].astype(float)
+        return {"n": len(g), "exp_R": round(float(rr.mean()), 2),
+                "win": round(float((g["pnl"].astype(float) > 0).mean()) * 100, 1)}
+
+    ga, gb = _grp(alto), _grp(bajo)
+    corr = float(cer["nota_factor"].corr(cer["r"])) if cer["r"].notna().sum() > 2 else float("nan")
+    return {"n": n, "alto": ga, "bajo": gb, "corr": corr}
+
+
+def stats_factor_texto() -> str:
+    s = estadisticas_por_factor()
+    if "mensaje" in s:
+        return s["mensaje"]
+    ga, gb = s["alto"], s["bajo"]
+    lineas = ["¿Rinden más las compras 'top factor'?",
+              f"  Factor ALTO (>0): n={ga['n']} · expectancy {ga['exp_R']}R · win {ga['win']}%",
+              f"  Factor BAJO (≤0): n={gb['n']} · expectancy {gb['exp_R']}R · win {gb['win']}%"]
+    if not np.isnan(s["corr"]):
+        lineas.append(f"  Correlación nota_factor ↔ R: {s['corr']:+.2f}")
+    if ga["exp_R"] is not None and gb["exp_R"] is not None:
+        if ga["exp_R"] > gb["exp_R"]:
+            lineas.append("  → Tus compras con factor alto rinden mejor. La señal de factores te aporta.")
+        else:
+            lineas.append("  → De momento el factor alto NO rinde mejor. Sigue registrando (muestra pequeña).")
+    return "\n".join(lineas)
+
+
 def stats_texto() -> str:
     s = estadisticas()
     if s["n_cerradas"] == 0:
@@ -149,6 +202,8 @@ def stats_texto() -> str:
         out.append(f"Kelly (completa/½)   : {s['kelly_pct']}% / {s['kelly_medio_pct']}%  → úsalo en position_sizer")
     out.append("")
     out.append(veredicto + fiable)
+    out.append("")
+    out.append(stats_factor_texto())
     return "\n".join(out)
 
 
@@ -161,6 +216,7 @@ def main():
     a.add_argument("--stop", type=float, required=True)
     a.add_argument("--acciones", type=int, required=True)
     a.add_argument("--nota", default=""); a.add_argument("--short", action="store_true")
+    a.add_argument("--factor", type=float, default=None, help="Nota de factores [-1,+1] al abrir.")
 
     c = sub.add_parser("cerrar")
     c.add_argument("id", type=int); c.add_argument("--salida", type=float, required=True)
@@ -171,7 +227,7 @@ def main():
     args = ap.parse_args()
     if args.cmd == "abrir":
         nid = abrir(args.ticker, args.entrada, args.stop, args.acciones,
-                    args.nota, "SHORT" if args.short else "LONG")
+                    args.nota, "SHORT" if args.short else "LONG", args.factor)
         print(f"Operación #{nid} abierta ({args.ticker.upper()}).")
     elif args.cmd == "cerrar":
         pnl, r = cerrar(args.id, args.salida)

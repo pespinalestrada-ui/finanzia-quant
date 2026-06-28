@@ -355,6 +355,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
         ticker = ticker.strip().upper()
         pilares = []  # (nombre, lectura, score, peso)
         notas_modelos = ""
+        factor_score_val = None   # nota de factores, para el auto-log del diario
 
         # --- 1. Forecast: Prophet siempre; consenso multi-modelo si se pide -----
         fig, tabla_fc, _informe, meta = forecast_tool.forecast(ticker, period=period)
@@ -473,6 +474,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
         if not cripto:
             try:
                 s_fac, lec_fac, _ = FS.score_absoluto(ticker)
+                factor_score_val = s_fac
                 pilares.append(("Factores (value/mom/quality/low-vol)", lec_fac, s_fac, 0.12))
             except Exception:
                 pass
@@ -532,7 +534,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
                     riesgo_eur = 10000 * 0.01
                     shares = max(1, int(riesgo_eur // r_accion))
                 
-                nid = JR.abrir(ticker, px, stop, shares, f"Auto-Veredicto: {verd} (Score {total:+.2f})", "SHORT" if verd == "VENDER" else "LONG")
+                nid = JR.abrir(ticker, px, stop, shares, f"Auto-Veredicto: {verd} (Score {total:+.2f})", "SHORT" if verd == "VENDER" else "LONG", factor_score_val)
                 nota_log = f"\n\n✅ **Auto-Logging:** Operación #{nid} registrada automáticamente en el Diario (simulada) para medir expectancy."
             except Exception as ej:
                 nota_log = f"\n\n⚠️ Error al auto-registrar en Diario: {ej}"
@@ -572,8 +574,13 @@ def tab_veredicto_cripto(ticker, period, con_sentimiento, con_modelos=False):
 # ---- 11. Diario de operaciones (paper trading) ------------------------------
 def tab_journal_abrir(ticker, entrada, stop, acciones, nota, es_short):
     try:
+        # nota de factores al abrir (best-effort; cripto u otros fallos → None)
+        try:
+            nf, _, _ = FS.score_absoluto(ticker)
+        except Exception:
+            nf = None
         nid = JR.abrir(ticker, float(entrada), float(stop), int(acciones),
-                       nota or "", "SHORT" if es_short else "LONG")
+                       nota or "", "SHORT" if es_short else "LONG", nf)
         return f"✅ Operación **#{nid}** abierta ({ticker.upper()}).", JR.lista(), JR.stats_texto()
     except Exception as e:
         return f"**Error:** {e}", JR.lista(), JR.stats_texto()

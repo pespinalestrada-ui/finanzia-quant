@@ -35,7 +35,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "lstm_forecast", SUITE / "neuralprophet_forecast",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
-          SUITE / "intraday", SUITE / "alpaca_paper"]:
+          SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -852,6 +852,19 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 20. Validar Veredicto (backtest honesto del score) --------------------
+def tab_validar_veredicto(txt, horizon, trials):
+    try:
+        import veredicto_backtest as VB
+        tickers = _parse(txt)
+        if len(tickers) < 3:
+            return "Mete **al menos 3** tickers (la validación es cross-section)."
+        res = VB.backtest(tickers, int(horizon), trials=int(trials) if trials else None)
+        return "```\n" + VB.informe(res) + "\n```"
+    except Exception as e:
+        return f"**Error:** {e}"
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
@@ -982,6 +995,19 @@ def build():
             jb2.click(tab_journal_cerrar, [jid, jx], [jmsg, jtabla, jstats])
             jb3.click(tab_journal_refrescar, [], [jtabla, jstats])
             app.load(tab_journal_refrescar, [], [jtabla, jstats])
+        with gr.Tab("🔬 Validar Veredicto"):
+            gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
+                        "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "
+                        "Sharpe long-short y **Deflated Sharpe** (corrige multiple-testing). "
+                        "El paso obligatorio antes de automatizar. Tarda ~1 min.")
+            with gr.Row():
+                tvb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                 label="Universo (coma)", scale=4)
+                hvb = gr.Dropdown([5, 10, 20], value=10, label="Horizonte (días)")
+                trvb = gr.Number(value=20, label="Nº pruebas (deflación)")
+                bvb = gr.Button("Validar", variant="primary")
+            mdvb = gr.Markdown()
+            bvb.click(tab_validar_veredicto, [tvb, hvb, trvb], [mdvb])
         with gr.Tab("1 · Forecast"):
             with gr.Row():
                 t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)

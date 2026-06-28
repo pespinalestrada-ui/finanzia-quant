@@ -36,7 +36,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "alpha_forecast", SUITE / "conformal_forecast",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
-          SUITE / "signal_engine"]:
+          SUITE / "signal_engine", SUITE / "risk_manager"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -853,6 +853,28 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 22. Gestor de riesgo / plan de órdenes --------------------------------
+def tab_plan_riesgo(txt, capital, target_vol, max_pos, umbral):
+    try:
+        import risk_manager as RKM
+        tickers = _parse(txt)
+        if not tickers:
+            return pd.DataFrame(), "Mete tickers."
+        plan, meta = RKM.generar_plan(tickers, float(capital), float(target_vol),
+                                      int(max_pos), 2.0, float(umbral))
+        if "mensaje" in meta:
+            return pd.DataFrame(), meta["mensaje"]
+        aviso = "⚠️ **EXCEDE** tu límite de riesgo diario" if meta["excede_riesgo"] else "✓ dentro del límite"
+        md = (f"**Exposición:** {meta['exposicion_pct']}% · "
+              f"**Riesgo total:** {meta['riesgo_total_eur']:.0f} € ({meta['riesgo_total_pct']}%) "
+              f"vs límite {meta['limite_riesgo_pct']:.0f}% → {aviso}\n\n"
+              f"> Vol targeting + stop ATR. Entrada del bucle de ejecución (paper). "
+              f"Las órdenes las disparas tú.")
+        return plan, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
 # ---- 21. Generador de señales del sistema ----------------------------------
 def tab_senales_sistema(txt, umbral, con_factor):
     try:
@@ -1030,6 +1052,21 @@ def build():
             mdse = gr.Markdown()
             tbse = gr.Dataframe(label="Ranking de señales", wrap=True)
             bse.click(tab_senales_sistema, [tse, use, fse], [tbse, mdse])
+        with gr.Tab("⚖️ Plan / Riesgo"):
+            gr.Markdown("**Cuánto operar de cada señal**: vol targeting + máx posiciones + "
+                        "stop ATR + tope de riesgo. Convierte las señales en un plan de órdenes "
+                        "concreto (acciones, coste, stop, riesgo €). Entrada del bucle de ejecución.")
+            with gr.Row():
+                trk = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                 label="Watchlist (coma)", scale=3)
+                crk = gr.Number(value=10000, label="Capital €")
+                vrk = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
+                mrk = gr.Dropdown([3, 4, 5, 6, 8], value=5, label="Máx posiciones")
+                urk = gr.Slider(0.1, 0.6, value=0.30, step=0.05, label="Umbral señal")
+                brk = gr.Button("Generar plan", variant="primary")
+            mdrk = gr.Markdown()
+            tbrk = gr.Dataframe(label="Plan de órdenes", wrap=True)
+            brk.click(tab_plan_riesgo, [trk, crk, vrk, mrk, urk], [tbrk, mdrk])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

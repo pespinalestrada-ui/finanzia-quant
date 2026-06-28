@@ -39,7 +39,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator",
           SUITE / "performance", SUITE / "pairs_trading", SUITE / "hrp_portfolio",
           SUITE / "evt_risk", SUITE / "montecarlo", SUITE / "system_backtest",
-          SUITE / "hmm_regime", SUITE / "meta_labeling"]:
+          SUITE / "hmm_regime", SUITE / "meta_labeling", SUITE / "rmt_clean",
+          SUITE / "kalman_hedge", SUITE / "transfer_entropy"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -855,6 +856,42 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 29. Física/Info: RMT + Kalman + Entropía de transferencia --------------
+def tab_rmt(txt, period):
+    try:
+        import rmt_clean as RMT
+        tickers = _parse(txt)
+        if len(tickers) < 4:
+            return _err_fig("≥4 activos."), "Mete al menos 4 activos (RMT necesita una matriz)."
+        meta = RMT.comparar(tickers, period)
+        if meta is None:
+            return _err_fig("Datos insuficientes."), "Datos insuficientes."
+        return RMT._plot(meta), "```\n" + RMT.informe(meta) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
+def tab_kalman(a, b, period):
+    try:
+        import kalman_hedge as KH
+        res = KH.analizar(a.strip().upper(), b.strip().upper(), period)
+        return KH._plot(res), "```\n" + KH.informe(res) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
+def tab_te(txt, bins, period):
+    try:
+        import transfer_entropy as TE
+        tickers = _parse(txt)
+        if len(tickers) < 3:
+            return _err_fig("≥3 activos."), "Mete al menos 3 activos."
+        M, neto, _ = TE.matriz(tickers, period, int(bins))
+        return TE._plot(M), "```\n" + TE.informe(M, neto) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
 # ---- 28. Régimen HMM + Meta-labeling ---------------------------------------
 def tab_hmm(ticker, estados, period):
     try:
@@ -1352,6 +1389,43 @@ def build():
                 bme = gr.Button("Medir meta-labeling", variant="primary")
             mdme = gr.Markdown()
             bme.click(tab_meta, [tme, hme, ume, pme], [mdme])
+        with gr.Tab("🧲 RMT (correlación)"):
+            gr.Markdown("**Limpia la matriz de correlación** con Random Matrix Theory (econofísica). "
+                        "Marchenko-Pastur separa señal de ruido: solo los autovalores sobre λ+ son "
+                        "reales. Mejora la asignación (no optimiza sobre ruido). Compara OOS.")
+            with gr.Row():
+                trm = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT, GLD, TLT, XLE, XLF",
+                                 label="Activos (coma, ≥4)", scale=4)
+                prm = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
+                brm = gr.Button("Limpiar correlación", variant="primary")
+            mdrm = gr.Markdown()
+            figrm = gr.Plot()
+            brm.click(tab_rmt, [trm, prm], [figrm, mdrm])
+        with gr.Tab("🛰️ Kalman (pairs)"):
+            gr.Markdown("**Hedge ratio DINÁMICO** para pairs trading con filtro de Kalman. El β entre "
+                        "dos activos deriva en el tiempo; Kalman lo estima día a día (mejor que el β "
+                        "fijo OLS). Operas el z-score del spread. Pares clásicos: KO/PEP, EWA/EWC, V/MA.")
+            with gr.Row():
+                tka = gr.Textbox(value="EWA", label="Activo A", scale=2)
+                tkb = gr.Textbox(value="EWC", label="Activo B", scale=2)
+                pka = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                bka = gr.Button("Kalman dinámico", variant="primary")
+            mdka = gr.Markdown()
+            figka = gr.Plot()
+            bka.click(tab_kalman, [tka, tkb, pka], [figka, mdka])
+        with gr.Tab("📡 Entropía (lead-lag)"):
+            gr.Markdown("**¿Qué activo lidera a cuál?** Entropía de transferencia (teoría de la "
+                        "información): flujo de información direccional y NO lineal que la correlación "
+                        "no ve. Líderes vs seguidores. Útil para lead-lag y selección de features.")
+            with gr.Row():
+                tte = gr.Textbox(value="SPY, QQQ, TLT, GLD, HYG, XLF, XLE",
+                                 label="Activos (coma, ≥3)", scale=4)
+                bte_n = gr.Dropdown([3, 4, 5], value=3, label="Bins")
+                pte = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                bte = gr.Button("Medir flujo info", variant="primary")
+            mdte = gr.Markdown()
+            figte = gr.Plot()
+            bte.click(tab_te, [tte, bte_n, pte], [figte, mdte])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

@@ -37,7 +37,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "risk_metrics", SUITE / "alerts", SUITE / "factor_scorer",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
           SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator",
-          SUITE / "performance"]:
+          SUITE / "performance", SUITE / "pairs_trading", SUITE / "hrp_portfolio",
+          SUITE / "evt_risk"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -854,6 +855,53 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 25. Matemática avanzada: pairs / HRP / EVT ----------------------------
+def tab_pairs(txt, period):
+    try:
+        import pairs_trading as PT
+        tickers = _parse(txt)
+        if len(tickers) < 2:
+            return pd.DataFrame(), "Mete al menos 2 tickers."
+        df = PT.buscar(tickers, period)
+        if df.empty:
+            return pd.DataFrame(), "Ningún par cointegrado (p<0.10) con reversión clara."
+        return df, ("**Pares cointegrados** (arbitraje estadístico, market-neutral). "
+                    "Opera los de p<0.05 cuando |z|>2: largo el barato, corto el caro. "
+                    "Half-life corto = revierte rápido. No es recomendación.")
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_hrp(txt, period):
+    try:
+        import hrp_portfolio as HP
+        tickers = _parse(txt)
+        if len(tickers) < 3:
+            return pd.DataFrame(), pd.DataFrame(), "Mete al menos 3 activos."
+        out = HP.comparar(tickers, period)
+        if out is None:
+            return pd.DataFrame(), pd.DataFrame(), "Datos insuficientes."
+        tabla, pesos, _ = out
+        wdf = (pesos["HRP"] * 100).round(1).reset_index()
+        wdf.columns = ["Activo", "Peso HRP %"]
+        md = ("**Comparación OOS** (pesos con 1ª mitad, vol/Sharpe en 2ª). HRP y Min-Var "
+              "(Ledoit-Wolf) baten a la equiponderada con menos vol. HRP no invierte la "
+              "covarianza → robusto. No es recomendación.")
+        return tabla, wdf, md
+    except Exception as e:
+        return pd.DataFrame(), pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_evt(ticker, period, umbral):
+    try:
+        import evt_risk as EV
+        r = EV._retornos(ticker.strip().upper(), period)
+        res = EV.evt(r, float(umbral))
+        return "```\n" + EV.informe(ticker.strip().upper(), res) + "\n```"
+    except Exception as e:
+        return f"**Error:** {e}"
+
+
 # ---- 24. Monitor de rendimiento vs benchmark -------------------------------
 def tab_rendimiento(capital, benchmark):
     try:
@@ -1146,6 +1194,43 @@ def build():
             mdpf = gr.Markdown()
             figpf = gr.Plot()
             bpf.click(tab_rendimiento, [cpf, bpf_t], [figpf, mdpf])
+        with gr.Tab("🔗 Pairs (cointegración)"):
+            gr.Markdown("**Arbitraje estadístico market-neutral**: busca pares COINTEGRADOS "
+                        "(Engle-Granger) con reversión a la media (half-life Ornstein-Uhlenbeck). "
+                        "Largo el barato / corto el caro cuando el z-score del spread es extremo.")
+            with gr.Row():
+                tpr = gr.Textbox(value="KO, PEP, XOM, CVX, V, MA, JPM, BAC, GLD, SLV",
+                                 label="Universo (coma)", scale=4)
+                ppr = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                bpr = gr.Button("Buscar pares", variant="primary")
+            mdpr = gr.Markdown()
+            tbpr = gr.Dataframe(label="Pares cointegrados", wrap=True)
+            bpr.click(tab_pairs, [tpr, ppr], [tbpr, mdpr])
+        with gr.Tab("🧮 HRP Cartera"):
+            gr.Markdown("**Asignación robusta**: HRP (López de Prado) + Min-Var con **Ledoit-Wolf** "
+                        "vs equiponderada, medido **fuera de muestra**. Arregla la inestabilidad de "
+                        "Markowitz (no invierte la covarianza).")
+            with gr.Row():
+                thr = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, JPM, XOM, KO, GLD, TLT",
+                                 label="Activos (coma)", scale=4)
+                phr = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
+                bhr = gr.Button("Comparar asignación", variant="primary")
+            mdhr = gr.Markdown()
+            with gr.Row():
+                tbhr = gr.Dataframe(label="HRP vs Min-Var vs Equal (OOS)", wrap=True)
+                whr = gr.Dataframe(label="Pesos HRP", wrap=True)
+            bhr.click(tab_hrp, [thr, phr], [tbhr, whr, mdhr])
+        with gr.Tab("📉 EVT Colas"):
+            gr.Markdown("**Riesgo de cola (crash)** con Teoría de Valores Extremos: ajusta una "
+                        "Pareto Generalizada a la cola (POT) → VaR/ES extremos. Compara con histórico "
+                        "y normal: se ve cuánto **subestima la normal** el riesgo de crash.")
+            with gr.Row():
+                tev = gr.Textbox(value="SPY", label="Ticker", scale=3)
+                pev = gr.Dropdown(["5y", "8y", "10y", "max"], value="10y", label="Histórico")
+                uev = gr.Slider(0.90, 0.98, value=0.95, step=0.01, label="Umbral cola (cuantil u)")
+                bev = gr.Button("Medir cola", variant="primary")
+            mdev = gr.Markdown()
+            bev.click(tab_evt, [tev, pev, uev], [mdev])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

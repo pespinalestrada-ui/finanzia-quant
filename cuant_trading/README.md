@@ -36,6 +36,9 @@ pandas/numpy/matplotlib/scipy). Datos de Yahoo Finance (retardo ~15 min, fin de 
 | [`risk_manager/`](risk_manager/) | Señales → **plan de órdenes** (vol targeting + stop ATR + tope de riesgo) | `python risk_manager.py AAPL MSFT ... --capital 10000` |
 | [`orchestrator/`](orchestrator/) | **El sistema completo**: señales→plan→paper→diario (ejecución que disparas tú) | `python orchestrator.py AAPL MSFT ... --capital 10000` |
 | [`performance/`](performance/) | **¿Bates al mercado?** Equity + métricas + comparación **vs SPY** | `python performance.py` |
+| [`pairs_trading/`](pairs_trading/) | **Arbitraje por cointegración** (Engle-Granger + half-life OU), market-neutral | `python pairs_trading.py KO PEP XOM CVX V MA` |
+| [`hrp_portfolio/`](hrp_portfolio/) | **Cartera robusta** HRP + Ledoit-Wolf vs Markowitz (OOS) | `python hrp_portfolio.py AAPL MSFT NVDA ... GLD TLT` |
+| [`evt_risk/`](evt_risk/) | **Riesgo de cola (crash)** con EVT/GPD: VaR/ES extremos vs normal | `python evt_risk.py SPY` |
 | [`alerts/`](alerts/) | Vigilancia de watchlist (RSI, vol, cruces, extremos) + log | `python alerts.py SAB.MC AAPL MSFT` |
 | [`dashboard/`](dashboard/) | **UI web única con todas las funciones** (16 pestañas, incl. ★ Veredicto y 🪙 Veredicto Cripto) | `python dashboard.py` → http://127.0.0.1:7862 |
 

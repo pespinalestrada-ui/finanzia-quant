@@ -41,6 +41,8 @@ pandas/numpy/matplotlib/scipy). Datos de Yahoo Finance (retardo ~15 min, fin de 
 | [`evt_risk/`](evt_risk/) | **Riesgo de cola (crash)** con EVT/GPD: VaR/ES extremos vs normal | `python evt_risk.py SPY` |
 | [`montecarlo/`](montecarlo/) | **Monte Carlo**: trayectorias de precio + robustez del sistema (prob. ruina) | `python montecarlo.py precio AAPL` |
 | [`system_backtest/`](system_backtest/) | **Backtest de la estrategia completa** (top-N + rebal + costes) vs SPY | `python system_backtest.py AAPL MSFT NVDA ...` |
+| [`hmm_regime/`](hmm_regime/) | **Régimen de mercado** (HMM gaussiano propio): calma/estrés/lateral | `python hmm_regime.py SPY` |
+| [`meta_labeling/`](meta_labeling/) | **Meta-labeling** (López de Prado): ML filtra la señal primaria | `python meta_labeling.py AAPL` |
 | [`alerts/`](alerts/) | Vigilancia de watchlist (RSI, vol, cruces, extremos) + log | `python alerts.py SAB.MC AAPL MSFT` |
 | [`dashboard/`](dashboard/) | **UI web única con todas las funciones** (16 pestañas, incl. ★ Veredicto y 🪙 Veredicto Cripto) | `python dashboard.py` → http://127.0.0.1:7862 |
 

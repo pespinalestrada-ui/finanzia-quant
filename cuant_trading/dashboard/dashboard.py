@@ -38,7 +38,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
           SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator",
           SUITE / "performance", SUITE / "pairs_trading", SUITE / "hrp_portfolio",
-          SUITE / "evt_risk", SUITE / "montecarlo", SUITE / "system_backtest"]:
+          SUITE / "evt_risk", SUITE / "montecarlo", SUITE / "system_backtest",
+          SUITE / "hmm_regime", SUITE / "meta_labeling"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -855,6 +856,25 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 28. Régimen HMM + Meta-labeling ---------------------------------------
+def tab_hmm(ticker, estados, period):
+    try:
+        import hmm_regime as HM
+        res = HM.analizar(ticker.strip().upper(), int(estados), period)
+        return HM._plot(res), "```\n" + HM.informe(res) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
+def tab_meta(ticker, horizon, umbral, period):
+    try:
+        import meta_labeling as ML
+        res = ML.backtest(ticker.strip().upper(), int(horizon), float(umbral), period)
+        return "```\n" + ML.informe(ticker.strip().upper(), res) + "\n```"
+    except Exception as e:
+        return f"**Error:** {e}"
+
+
 # ---- 27. Backtest de la estrategia completa --------------------------------
 def tab_system_backtest(txt, top_n, rebal, coste_bps, period):
     try:
@@ -1309,6 +1329,30 @@ def build():
             mdsb = gr.Markdown()
             figsb = gr.Plot()
             bsb.click(tab_system_backtest, [tsb, nsb, rsb, csb, psb], [figsb, mdsb])
+        with gr.Tab("🌀 Régimen (HMM)"):
+            gr.Markdown("**¿En qué régimen estamos?** Hidden Markov Model (gaussiano) identifica "
+                        "estados ocultos: 🟢 calma alcista, 🔴 alta volatilidad, 🟡 lateral. Úsalo "
+                        "como GATE: opera tendencia en 🟢, recorta en 🔴.")
+            with gr.Row():
+                thm = gr.Textbox(value="SPY", label="Ticker", scale=3)
+                nhm = gr.Dropdown([2, 3, 4], value=3, label="Nº regímenes")
+                phm = gr.Dropdown(["5y", "8y", "10y", "max"], value="8y", label="Histórico")
+                bhm = gr.Button("Detectar régimen", variant="primary")
+            mdhm = gr.Markdown()
+            fighm = gr.Plot()
+            bhm.click(tab_hmm, [thm, nhm, phm], [fighm, mdhm])
+        with gr.Tab("🎯 Meta-labeling"):
+            gr.Markdown("**¿Actuar o no sobre la señal?** Meta-labeling (López de Prado): un 2º "
+                        "modelo ML filtra las señales primarias malas (tendencia) → menos trades, "
+                        "mejor precisión. La probabilidad sirve para dimensionar. Tarda ~1-2 min.")
+            with gr.Row():
+                tme = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                hme = gr.Dropdown([3, 5, 10], value=5, label="Horizonte (días)")
+                ume = gr.Slider(0.5, 0.7, value=0.55, step=0.01, label="Umbral prob.")
+                pme = gr.Dropdown(["5y", "8y", "10y"], value="8y", label="Histórico")
+                bme = gr.Button("Medir meta-labeling", variant="primary")
+            mdme = gr.Markdown()
+            bme.click(tab_meta, [tme, hme, ume, pme], [mdme])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

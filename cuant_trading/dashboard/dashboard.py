@@ -38,7 +38,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "intraday", SUITE / "alpaca_paper", SUITE / "veredicto_backtest",
           SUITE / "signal_engine", SUITE / "risk_manager", SUITE / "orchestrator",
           SUITE / "performance", SUITE / "pairs_trading", SUITE / "hrp_portfolio",
-          SUITE / "evt_risk"]:
+          SUITE / "evt_risk", SUITE / "montecarlo"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -855,6 +855,30 @@ def tab_intraday_scan(txt, interval, or_min, coste_bps):
         return pd.DataFrame(), f"**Error:** {e}"
 
 
+# ---- 26. Monte Carlo (precio + sistema) ------------------------------------
+def tab_mc_precio(ticker, horizon, metodo):
+    try:
+        import montecarlo as MC
+        paths, fin, meta = MC.simular_precio(ticker.strip().upper(), int(horizon), 3000, metodo)
+        return MC._plot_precio(paths, meta, ticker.strip().upper()), "```\n" + MC.informe_precio(ticker.strip().upper(), meta) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
+def tab_mc_sistema(winrate, payoff, riesgo, trades, usar_diario):
+    try:
+        import montecarlo as MC
+        ret = MC._retornos_trade_diario() if usar_diario else None
+        if usar_diario and ret is None:
+            return _err_fig("Diario sin suficientes operaciones cerradas (≥5)."), \
+                   "Diario sin suficientes operaciones cerradas (≥5). Usa win-rate/payoff o cierra más en paper."
+        equity, meta = MC.simular_sistema(ret, float(winrate), float(payoff),
+                                          float(riesgo) / 100.0, int(trades), 5000, 10000.0)
+        return MC._plot_sistema(equity, meta), "```\n" + MC.informe_sistema(meta) + "\n```"
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), f"**Error:** {e}"
+
+
 # ---- 25. Matemática avanzada: pairs / HRP / EVT ----------------------------
 def tab_pairs(txt, period):
     try:
@@ -1231,6 +1255,30 @@ def build():
                 bev = gr.Button("Medir cola", variant="primary")
             mdev = gr.Markdown()
             bev.click(tab_evt, [tev, pev, uev], [mdev])
+        with gr.Tab("🎲 Monte Carlo"):
+            gr.Markdown("**El abanico de lo posible** (no predicción). **Precio**: miles de "
+                        "trayectorias futuras (bootstrap de retornos). **Sistema**: bootstrap de "
+                        "operaciones → prob. de acabar positivo, drawdown y **prob. de ruina**.")
+            gr.Markdown("#### Monte Carlo de PRECIO")
+            with gr.Row():
+                tmc = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                hmc = gr.Dropdown([30, 60, 90, 120, 252], value=90, label="Horizonte (días)")
+                emc = gr.Dropdown(["bootstrap", "gbm"], value="bootstrap", label="Método")
+                bmc1 = gr.Button("Simular precio", variant="primary")
+            mdmc1 = gr.Markdown()
+            figmc1 = gr.Plot()
+            bmc1.click(tab_mc_precio, [tmc, hmc, emc], [figmc1, mdmc1])
+            gr.Markdown("---\n#### Monte Carlo del SISTEMA (robustez)")
+            with gr.Row():
+                wmc = gr.Slider(0.3, 0.7, value=0.55, step=0.01, label="Win rate")
+                pmc = gr.Slider(0.5, 3.0, value=1.5, step=0.1, label="Payoff (G/P)")
+                rmc = gr.Slider(0.25, 3.0, value=1.0, step=0.25, label="Riesgo/op %")
+                nmc = gr.Dropdown([30, 50, 100, 200], value=50, label="Nº operaciones")
+                dmc = gr.Checkbox(value=False, label="Usar mi diario real")
+                bmc2 = gr.Button("Simular sistema", variant="primary")
+            mdmc2 = gr.Markdown()
+            figmc2 = gr.Plot()
+            bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
         with gr.Tab("🔬 Validar Veredicto"):
             gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                         "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "

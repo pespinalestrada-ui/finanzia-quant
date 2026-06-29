@@ -1108,463 +1108,473 @@ def build():
         gr.Markdown("# FinanzIA — Mesa cuantitativa")
         gr.Markdown("Suite de trading algorítmico. Datos Yahoo Finance (retardo ~15 min). "
                     "Análisis y educación — **no es recomendación de inversión**.")
-        with gr.Tab("📊 Factores"):
-            gr.Markdown("**Modelo multi-factor (smart beta)** — cómo deciden los fondos cuant "
-                        "qué comprar. Rankea un universo por **value + momentum + quality + low-vol** "
-                        "(z-score cruzado). Compra el top, evita el fondo. Tarda ~1-3 s/acción "
-                        "(descarga fundamentales).")
-            with gr.Row():
-                tf = gr.Textbox(value="AAPL, MSFT, NVDA, JPM, XOM, KO, SAB.MC, ITX.MC",
-                                label="Universo de acciones (coma)", scale=4)
-                bf = gr.Button("Rankear", variant="primary")
-            mdf = gr.Markdown()
-            tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
-            bf.click(tab_factores, [tf], [tblf, mdf])
-        with gr.Tab("★ Veredicto"):
-            gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + ADX + "
-                        "**consenso de 5 osciladores** + MACD + momentum + volumen (OBV) + señales "
-                        "(+ consenso multi-modelo y sentimiento opcionales) → estimación "
-                        "**COMPRAR / MANTENER / VENDER** con desglose por pilar.")
-            with gr.Row():
-                tv = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                pv = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
-                bv = gr.Button("Analizar TODO", variant="primary")
-            with gr.Row():
-                mv = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM + pesados si están, +tiempo)")
-                sv = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
-            mdv = gr.Markdown()
-            tbv = gr.Dataframe(label="Desglose por pilar", wrap=True)
-            plv = gr.Plot(label="Forecast 30/90/120d")
-            bv.click(tab_veredicto, [tv, pv, sv, mv], [plv, tbv, mdv])
-        with gr.Tab("🪙 Veredicto Cripto"):
-            gr.Markdown("**Veredicto para criptomonedas** (BTC-USD, ETH-EUR, SOL-USD…). "
-                        "Mismo agregador pero con **forecast diario 7d**, momentum en días "
-                        "naturales y pilar de **Fear & Greed cripto** (contrarian) → "
-                        "**COMPRAR / MANTENER / VENDER**. Usa tickers Yahoo tipo `BTC-USD`.")
-            with gr.Row():
-                tvc = gr.Textbox(value="BTC-USD", label="Ticker cripto (BASE-FIAT)", scale=3)
-                pvc = gr.Dropdown(["1y", "2y", "3y", "5y"], value="3y", label="Histórico")
-                bvc = gr.Button("Analizar cripto", variant="primary")
-            with gr.Row():
-                mvc = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM…, +tiempo)")
-                svc = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
-            mdvc = gr.Markdown()
-            tbvc = gr.Dataframe(label="Desglose por pilar", wrap=True)
-            plvc = gr.Plot(label="Forecast cripto 30/90/120d")
-            bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc], [plvc, tbvc, mdvc])
-        with gr.Tab("⏱️ Intradía"):
-            gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
-                        "**backtest Opening Range Breakout con COSTES** (comisión+spread+slippage). "
-                        "Datos yfinance intradía (retraso ~15 min, histórico corto) → para *validar* "
-                        "un método, no para ejecutar en vivo. El coste se come el edge: aquí se ve.")
-            with gr.Row():
-                ti = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                ii = gr.Dropdown(["5m", "15m", "30m", "60m"], value="15m", label="Intervalo")
-                ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
-                ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
-            with gr.Row():
-                bi1 = gr.Button("📷 Snapshot de hoy", variant="secondary")
-                bi2 = gr.Button("🧪 Backtest ORB con costes", variant="primary")
-            mdi = gr.Markdown()
-            figi = gr.Plot()
-            tbli = gr.Dataframe(wrap=True)
-            bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
-            bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
-            gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")
-            with gr.Row():
-                tis = gr.Textbox(value="AAPL, MSFT, NVDA, TSLA, JPM, SAB.MC",
-                                 label="Universo (coma)", scale=4)
-                bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
-            bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
-        with gr.Tab("🦙 Alpaca Paper"):
-            gr.Markdown("**Paper trading en vivo** (Alpaca · dinero FICTICIO, datos real-time IEX). "
-                        "El salto a 'vivo' sin riesgo. **Las órdenes las envías TÚ** con el botón — "
-                        "el asistente nunca opera por su cuenta. Configura `ALPACA_KEY`/`ALPACA_SECRET` en `.env`.")
-            with gr.Row():
-                bap = gr.Button("🔄 Refrescar cuenta y posiciones", variant="secondary")
-            mdap = gr.Markdown()
-            tblap = gr.Dataframe(label="Posiciones abiertas (paper)", wrap=True)
-            gr.Markdown("**Cotización real-time**")
-            with gr.Row():
-                tapq = gr.Textbox(value="AAPL", label="Símbolo", scale=3)
-                bapq = gr.Button("Precio")
-            mdapq = gr.Markdown()
-            gr.Markdown("---\n**Enviar orden PAPER** (la disparas tú; es dinero ficticio)")
-            with gr.Row():
-                taps = gr.Textbox(value="AAPL", label="Símbolo", scale=2)
-                tapn = gr.Number(value=1, label="Cantidad")
-                tapl = gr.Radio(["Comprar", "Vender"], value="Comprar", label="Lado")
-                bapo = gr.Button("📨 Enviar orden PAPER", variant="primary")
-            tapr = gr.Checkbox(value=True, label="Registrar en el diario como apertura (con nota de factores). "
-                                                 "Desmárcalo si esta orden CIERRA una posición.")
-            mdapo = gr.Markdown()
-            bap.click(tab_alpaca_refrescar, [], [mdap, tblap])
-            bapq.click(tab_alpaca_precio, [tapq], [mdapq])
-            bapo.click(tab_alpaca_orden, [taps, tapn, tapl, tapr], [mdapo, mdap, tblap])
-            app.load(tab_alpaca_refrescar, [], [mdap, tblap])
-        with gr.Tab("📒 Diario"):
-            gr.Markdown("**Paper trading** — registra operaciones SIMULADAS y mide si tu método "
-                        "tiene ventaja real antes de arriesgar dinero. Con 20-30 cerradas, el "
-                        "win rate y payoff de aquí alimentan el Kelly del Tamaño posición.")
-            with gr.Row():
-                with gr.Column():
-                    gr.Markdown("#### Abrir operación")
-                    jt = gr.Textbox(label="Ticker", value="")
+        with gr.Tab("🎯 Operar"):
+            with gr.Tabs():
+                with gr.Tab("📊 Factores"):
+                    gr.Markdown("**Modelo multi-factor (smart beta)** — cómo deciden los fondos cuant "
+                                "qué comprar. Rankea un universo por **value + momentum + quality + low-vol** "
+                                "(z-score cruzado). Compra el top, evita el fondo. Tarda ~1-3 s/acción "
+                                "(descarga fundamentales).")
                     with gr.Row():
-                        je = gr.Number(label="Entrada"); js = gr.Number(label="Stop")
-                        ja = gr.Number(label="Acciones", value=10, precision=0)
-                    jn = gr.Textbox(label="Nota (ej. veredicto del sistema)", value="")
-                    jshort = gr.Checkbox(label="Es venta en corto (SHORT)", value=False)
-                    jb1 = gr.Button("Abrir (simulada)", variant="primary")
-                with gr.Column():
-                    gr.Markdown("#### Cerrar operación")
-                    jid = gr.Number(label="ID de la operación", precision=0)
-                    jx = gr.Number(label="Precio de salida")
-                    jb2 = gr.Button("Cerrar", variant="primary")
-                    jb3 = gr.Button("🔄 Refrescar diario")
-            jmsg = gr.Markdown()
-            jstats = gr.Textbox(label="Estadísticas (incluye Kelly para position sizer)", lines=11)
-            jtabla = gr.Dataframe(label="Operaciones", wrap=True)
-            jb1.click(tab_journal_abrir, [jt, je, js, ja, jn, jshort], [jmsg, jtabla, jstats])
-            jb2.click(tab_journal_cerrar, [jid, jx], [jmsg, jtabla, jstats])
-            jb3.click(tab_journal_refrescar, [], [jtabla, jstats])
-            app.load(tab_journal_refrescar, [], [jtabla, jstats])
-        with gr.Tab("📡 Señales"):
-            gr.Markdown("**Qué operar hoy**: corre el score del Veredicto sobre tu watchlist → "
-                        "ranking COMPRAR/MANTENER/VENDER. Entrada del bucle de ejecución (sizing "
-                        "→ Alpaca paper → diario). Rápido (sin Prophet).")
-            with gr.Row():
-                tse = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
-                                 label="Watchlist (coma)", scale=4)
-                use = gr.Slider(0.1, 0.6, value=0.35, step=0.05, label="Umbral señal")
-                fse = gr.Checkbox(value=False, label="Añadir factores")
-                bse = gr.Button("Generar señales", variant="primary")
-            mdse = gr.Markdown()
-            tbse = gr.Dataframe(label="Ranking de señales", wrap=True)
-            bse.click(tab_senales_sistema, [tse, use, fse], [tbse, mdse])
-        with gr.Tab("⚖️ Plan / Riesgo"):
-            gr.Markdown("**Cuánto operar de cada señal**: vol targeting + máx posiciones + "
-                        "stop ATR + tope de riesgo. Convierte las señales en un plan de órdenes "
-                        "concreto (acciones, coste, stop, riesgo €). Entrada del bucle de ejecución.")
-            with gr.Row():
-                trk = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
-                                 label="Watchlist (coma)", scale=3)
-                crk = gr.Number(value=10000, label="Capital €")
-                vrk = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
-                mrk = gr.Dropdown([3, 4, 5, 6, 8], value=5, label="Máx posiciones")
-                urk = gr.Slider(0.1, 0.6, value=0.30, step=0.05, label="Umbral señal")
-                brk = gr.Button("Generar plan", variant="primary")
-            mdrk = gr.Markdown()
-            tbrk = gr.Dataframe(label="Plan de órdenes", wrap=True)
-            brk.click(tab_plan_riesgo, [trk, crk, vrk, mrk, urk], [tbrk, mdrk])
-        with gr.Tab("🤖 Sistema"):
-            gr.Markdown("**El sistema completo de un clic**: señales → plan/riesgo → ejecución "
-                        "PAPER → diario. Genera el plan, revísalo, y si quieres lo mandas a Alpaca "
-                        "paper (dinero ficticio). **Las órdenes las disparas TÚ** con confirmación.")
-            with gr.Row():
-                tsy = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
-                                 label="Watchlist (coma)", scale=3)
-                csy = gr.Number(value=10000, label="Capital €")
-                vsy = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
-                msy = gr.Dropdown([3, 4, 5, 6, 8], value=5, label="Máx pos.")
-                usy = gr.Slider(0.1, 0.6, value=0.30, step=0.05, label="Umbral")
-            with gr.Row():
-                bsy1 = gr.Button("1) Generar plan de hoy", variant="secondary")
-                conf = gr.Checkbox(value=False, label="Confirmo enviar a PAPER (dinero ficticio)")
-                bsy2 = gr.Button("2) ▶️ Ejecutar en PAPER", variant="primary")
-            mdsy = gr.Markdown()
-            tbsy = gr.Dataframe(label="Plan / Resultado", wrap=True)
-            bsy1.click(tab_sistema_plan, [tsy, csy, vsy, msy, usy], [tbsy, mdsy])
-            bsy2.click(tab_sistema_ejecutar, [tsy, csy, vsy, msy, usy, conf], [tbsy, mdsy])
-        with gr.Tab("📈 Rendimiento"):
-            gr.Markdown("**¿Bates al mercado?** Curva de equity del diario + métricas "
-                        "(win rate, profit factor, expectancy, drawdown) y comparación **vs SPY** "
-                        "(comprar y mantener). El listón honesto: si no bates a indexarte, mejor indexarse.")
-            with gr.Row():
-                cpf = gr.Number(value=10000, label="Capital inicial €")
-                bpf_t = gr.Textbox(value="SPY", label="Benchmark", scale=2)
-                bpf = gr.Button("Medir rendimiento", variant="primary")
-            mdpf = gr.Markdown()
-            figpf = gr.Plot()
-            bpf.click(tab_rendimiento, [cpf, bpf_t], [figpf, mdpf])
-        with gr.Tab("🔗 Pairs (cointegración)"):
-            gr.Markdown("**Arbitraje estadístico market-neutral**: busca pares COINTEGRADOS "
-                        "(Engle-Granger) con reversión a la media (half-life Ornstein-Uhlenbeck). "
-                        "Largo el barato / corto el caro cuando el z-score del spread es extremo.")
-            with gr.Row():
-                tpr = gr.Textbox(value="KO, PEP, XOM, CVX, V, MA, JPM, BAC, GLD, SLV",
-                                 label="Universo (coma)", scale=4)
-                ppr = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
-                bpr = gr.Button("Buscar pares", variant="primary")
-            mdpr = gr.Markdown()
-            tbpr = gr.Dataframe(label="Pares cointegrados", wrap=True)
-            bpr.click(tab_pairs, [tpr, ppr], [tbpr, mdpr])
-        with gr.Tab("🧮 HRP Cartera"):
-            gr.Markdown("**Asignación robusta**: HRP (López de Prado) + Min-Var con **Ledoit-Wolf** "
-                        "vs equiponderada, medido **fuera de muestra**. Arregla la inestabilidad de "
-                        "Markowitz (no invierte la covarianza).")
-            with gr.Row():
-                thr = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, JPM, XOM, KO, GLD, TLT",
-                                 label="Activos (coma)", scale=4)
-                phr = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
-                bhr = gr.Button("Comparar asignación", variant="primary")
-            mdhr = gr.Markdown()
-            with gr.Row():
-                tbhr = gr.Dataframe(label="HRP vs Min-Var vs Equal (OOS)", wrap=True)
-                whr = gr.Dataframe(label="Pesos HRP", wrap=True)
-            bhr.click(tab_hrp, [thr, phr], [tbhr, whr, mdhr])
-        with gr.Tab("📉 EVT Colas"):
-            gr.Markdown("**Riesgo de cola (crash)** con Teoría de Valores Extremos: ajusta una "
-                        "Pareto Generalizada a la cola (POT) → VaR/ES extremos. Compara con histórico "
-                        "y normal: se ve cuánto **subestima la normal** el riesgo de crash.")
-            with gr.Row():
-                tev = gr.Textbox(value="SPY", label="Ticker", scale=3)
-                pev = gr.Dropdown(["5y", "8y", "10y", "max"], value="10y", label="Histórico")
-                uev = gr.Slider(0.90, 0.98, value=0.95, step=0.01, label="Umbral cola (cuantil u)")
-                bev = gr.Button("Medir cola", variant="primary")
-            mdev = gr.Markdown()
-            bev.click(tab_evt, [tev, pev, uev], [mdev])
-        with gr.Tab("🎲 Monte Carlo"):
-            gr.Markdown("**El abanico de lo posible** (no predicción). **Precio**: miles de "
-                        "trayectorias futuras (bootstrap de retornos). **Sistema**: bootstrap de "
-                        "operaciones → prob. de acabar positivo, drawdown y **prob. de ruina**.")
-            gr.Markdown("#### Monte Carlo de PRECIO")
-            with gr.Row():
-                tmc = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                hmc = gr.Dropdown([30, 60, 90, 120, 252], value=90, label="Horizonte (días)")
-                emc = gr.Dropdown(["bootstrap", "gbm"], value="bootstrap", label="Método")
-                bmc1 = gr.Button("Simular precio", variant="primary")
-            mdmc1 = gr.Markdown()
-            figmc1 = gr.Plot()
-            bmc1.click(tab_mc_precio, [tmc, hmc, emc], [figmc1, mdmc1])
-            gr.Markdown("---\n#### Monte Carlo del SISTEMA (robustez)")
-            with gr.Row():
-                wmc = gr.Slider(0.3, 0.7, value=0.55, step=0.01, label="Win rate")
-                pmc = gr.Slider(0.5, 3.0, value=1.5, step=0.1, label="Payoff (G/P)")
-                rmc = gr.Slider(0.25, 3.0, value=1.0, step=0.25, label="Riesgo/op %")
-                nmc = gr.Dropdown([30, 50, 100, 200], value=50, label="Nº operaciones")
-                dmc = gr.Checkbox(value=False, label="Usar mi diario real")
-                bmc2 = gr.Button("Simular sistema", variant="primary")
-            mdmc2 = gr.Markdown()
-            figmc2 = gr.Plot()
-            bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
-        with gr.Tab("📊 Backtest Sistema"):
-            gr.Markdown("**Backtest de la estrategia completa** sobre el histórico: compra el "
-                        "**top-N** por score del Veredicto, rebalancea, **resta costes**, y compara "
-                        "con **SPY** buy & hold. Un backtest que bate a SPY mide, no promete.")
-            with gr.Row():
-                tsb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
-                                 label="Universo (coma)", scale=3)
-                nsb = gr.Dropdown([2, 3, 4, 5], value=3, label="Top-N")
-                rsb = gr.Dropdown([5, 10, 21, 42], value=21, label="Rebal (días)")
-                csb = gr.Number(value=10, label="Coste bps")
-                psb = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
-                bsb = gr.Button("Backtestear", variant="primary")
-            mdsb = gr.Markdown()
-            figsb = gr.Plot()
-            bsb.click(tab_system_backtest, [tsb, nsb, rsb, csb, psb], [figsb, mdsb])
-        with gr.Tab("🌀 Régimen (HMM)"):
-            gr.Markdown("**¿En qué régimen estamos?** Hidden Markov Model (gaussiano) identifica "
-                        "estados ocultos: 🟢 calma alcista, 🔴 alta volatilidad, 🟡 lateral. Úsalo "
-                        "como GATE: opera tendencia en 🟢, recorta en 🔴.")
-            with gr.Row():
-                thm = gr.Textbox(value="SPY", label="Ticker", scale=3)
-                nhm = gr.Dropdown([2, 3, 4], value=3, label="Nº regímenes")
-                phm = gr.Dropdown(["5y", "8y", "10y", "max"], value="8y", label="Histórico")
-                bhm = gr.Button("Detectar régimen", variant="primary")
-            mdhm = gr.Markdown()
-            fighm = gr.Plot()
-            bhm.click(tab_hmm, [thm, nhm, phm], [fighm, mdhm])
-        with gr.Tab("🎯 Meta-labeling"):
-            gr.Markdown("**¿Actuar o no sobre la señal?** Meta-labeling (López de Prado): un 2º "
-                        "modelo ML filtra las señales primarias malas (tendencia) → menos trades, "
-                        "mejor precisión. La probabilidad sirve para dimensionar. Tarda ~1-2 min.")
-            with gr.Row():
-                tme = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                hme = gr.Dropdown([3, 5, 10], value=5, label="Horizonte (días)")
-                ume = gr.Slider(0.5, 0.7, value=0.55, step=0.01, label="Umbral prob.")
-                pme = gr.Dropdown(["5y", "8y", "10y"], value="8y", label="Histórico")
-                bme = gr.Button("Medir meta-labeling", variant="primary")
-            mdme = gr.Markdown()
-            bme.click(tab_meta, [tme, hme, ume, pme], [mdme])
-        with gr.Tab("🧲 RMT (correlación)"):
-            gr.Markdown("**Limpia la matriz de correlación** con Random Matrix Theory (econofísica). "
-                        "Marchenko-Pastur separa señal de ruido: solo los autovalores sobre λ+ son "
-                        "reales. Mejora la asignación (no optimiza sobre ruido). Compara OOS.")
-            with gr.Row():
-                trm = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT, GLD, TLT, XLE, XLF",
-                                 label="Activos (coma, ≥4)", scale=4)
-                prm = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
-                brm = gr.Button("Limpiar correlación", variant="primary")
-            mdrm = gr.Markdown()
-            figrm = gr.Plot()
-            brm.click(tab_rmt, [trm, prm], [figrm, mdrm])
-        with gr.Tab("🛰️ Kalman (pairs)"):
-            gr.Markdown("**Hedge ratio DINÁMICO** para pairs trading con filtro de Kalman. El β entre "
-                        "dos activos deriva en el tiempo; Kalman lo estima día a día (mejor que el β "
-                        "fijo OLS). Operas el z-score del spread. Pares clásicos: KO/PEP, EWA/EWC, V/MA.")
-            with gr.Row():
-                tka = gr.Textbox(value="EWA", label="Activo A", scale=2)
-                tkb = gr.Textbox(value="EWC", label="Activo B", scale=2)
-                pka = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
-                bka = gr.Button("Kalman dinámico", variant="primary")
-            mdka = gr.Markdown()
-            figka = gr.Plot()
-            bka.click(tab_kalman, [tka, tkb, pka], [figka, mdka])
-        with gr.Tab("📡 Entropía (lead-lag)"):
-            gr.Markdown("**¿Qué activo lidera a cuál?** Entropía de transferencia (teoría de la "
-                        "información): flujo de información direccional y NO lineal que la correlación "
-                        "no ve. Líderes vs seguidores. Útil para lead-lag y selección de features.")
-            with gr.Row():
-                tte = gr.Textbox(value="SPY, QQQ, TLT, GLD, HYG, XLF, XLE",
-                                 label="Activos (coma, ≥3)", scale=4)
-                bte_n = gr.Dropdown([3, 4, 5], value=3, label="Bins")
-                pte = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
-                bte = gr.Button("Medir flujo info", variant="primary")
-            mdte = gr.Markdown()
-            figte = gr.Plot()
-            bte.click(tab_te, [tte, bte_n, pte], [figte, mdte])
-        with gr.Tab("🔬 Validar Veredicto"):
-            gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
-                        "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "
-                        "Sharpe long-short y **Deflated Sharpe** (corrige multiple-testing). "
-                        "El paso obligatorio antes de automatizar. Tarda ~1 min.")
-            with gr.Row():
-                tvb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
-                                 label="Universo (coma)", scale=4)
-                hvb = gr.Dropdown([5, 10, 20], value=10, label="Horizonte (días)")
-                trvb = gr.Number(value=20, label="Nº pruebas (deflación)")
-                bvb = gr.Button("Validar", variant="primary")
-            mdvb = gr.Markdown()
-            bvb.click(tab_validar_veredicto, [tvb, hvb, trvb], [mdvb])
-        with gr.Tab("1 · Forecast"):
-            with gr.Row():
-                t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
-                p = gr.Dropdown(["2y","3y","5y","10y"], value="3y", label="Histórico")
-                motor = gr.Dropdown(["Prophet (rápido)", "LSTM (red neuronal)",
-                                     "NeuralProphet (AR-Net)", "AutoGluon (2 min, cuantiles)"],
-                                    value="Prophet (rápido)", label="Motor")
-                b = gr.Button("Forecast", variant="primary")
-            pl = gr.Plot(); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()
-            b.click(tab_forecast, [t, p, motor], [pl, tb, md])
-        with gr.Tab("2 · Indicadores"):
-            with gr.Row():
-                t2 = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                p2 = gr.Dropdown(["6mo","1y","2y"], value="1y", label="Histórico")
-                b2 = gr.Button("Calcular", variant="primary")
-            pl2 = gr.Plot(); tb2 = gr.Dataframe(label="Señales")
-            b2.click(tab_indicadores, [t2, p2], [pl2, tb2])
-        with gr.Tab("3 · Screener"):
-            t3 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers (espacio/coma)")
-            b3 = gr.Button("Escanear", variant="primary"); tb3 = gr.Dataframe(label="Ranking")
-            b3.click(tab_screener, t3, tb3)
-        with gr.Tab("4 · Señales"):
-            t4 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers")
-            b4 = gr.Button("Buscar señales", variant="primary"); tb4 = gr.Dataframe(label="Señales accionables")
-            b4.click(tab_signals, t4, tb4)
-        with gr.Tab("5 · Backtest"):
-            with gr.Row():
-                t5 = gr.Textbox(value="AAPL", label="Ticker", scale=2)
-                st = gr.Dropdown(["sma","rsi","bb"], value="sma", label="Estrategia")
-                fa = gr.Number(value=50, label="SMA rápida"); sl = gr.Number(value=200, label="SMA lenta")
-                p5 = gr.Dropdown(["2y","5y","10y"], value="5y", label="Histórico")
-                b5 = gr.Button("Backtest", variant="primary")
-            pl5 = gr.Plot(); md5 = gr.Markdown()
-            b5.click(tab_backtest, [t5, st, fa, sl, p5], [pl5, md5])
-        with gr.Tab("6 · Correlación"):
-            with gr.Row():
-                t6 = gr.Textbox(value="AAPL MSFT TLT GLD", label="Tickers", scale=3)
-                p6 = gr.Dropdown(["1y","2y","3y"], value="2y", label="Histórico")
-                b6 = gr.Button("Correlación", variant="primary")
-            pl6 = gr.Plot(); tb6 = gr.Dataframe(label="Matriz")
-            b6.click(tab_corr, [t6, p6], [pl6, tb6])
-        with gr.Tab("7 · Cartera"):
-            with gr.Row():
-                t7 = gr.Textbox(value="AAPL MSFT NVDA GOOGL", label="Tickers", scale=3)
-                p7 = gr.Dropdown(["2y","3y","5y"], value="3y", label="Histórico")
-                rf = gr.Number(value=0.0, label="Tasa libre riesgo (0.03=3%)")
-                b7 = gr.Button("Optimizar", variant="primary")
-            pl7 = gr.Plot(); md7 = gr.Markdown()
-            b7.click(tab_cartera, [t7, p7, rf], [pl7, md7])
-        with gr.Tab("8 · Sentimiento"):
-            gr.Markdown("Noticias del ticker analizadas con **FinBERT** + entidades. "
-                        "⏳ La **primera** consulta carga los modelos (~1 min); las siguientes van rápido.")
-            with gr.Row():
-                t8 = gr.Textbox(value="AAPL", label="Ticker", scale=3)
-                n8 = gr.Slider(3, 20, value=10, step=1, label="Nº noticias")
-                b8 = gr.Button("Analizar noticias", variant="primary")
-            md8 = gr.Markdown(); tb8 = gr.Dataframe(label="Titulares analizados", wrap=True)
-            b8.click(tab_sentiment, [t8, n8], [tb8, md8])
-        with gr.Tab("9 · Tamaño posición"):
-            gr.Markdown("Cuántas acciones comprar arriesgando un % fijo. Da Entrada+Stop, "
-                        "o solo Ticker para stop automático por ATR.")
-            with gr.Row():
-                t9 = gr.Textbox(value="", label="Ticker (opcional)", scale=2)
-                c9 = gr.Number(value=10000, label="Capital €")
-                r9 = gr.Number(value=1.0, label="Riesgo %")
-            with gr.Row():
-                e9 = gr.Number(value=0, label="Entrada (0=auto)")
-                s9 = gr.Number(value=0, label="Stop (0=auto)")
-                a9 = gr.Number(value=2.0, label="Múltiplo ATR")
-                b9 = gr.Button("Calcular", variant="primary")
-            md9 = gr.Markdown()
-            b9.click(tab_sizer, [t9, c9, r9, e9, s9, a9], [md9])
-        with gr.Tab("🌡️ Mercado"):
-            gr.Markdown("Contexto ANTES de mirar tickers: **Fear & Greed** (bolsa y cripto), "
-                        "**VIX** con régimen de volatilidad, y fundamentales del ticker que quieras.")
-            with gr.Row():
-                tm = gr.Textbox(value="SAB.MC", label="Ticker para fundamentales (opcional)", scale=3)
-                bm = gr.Button("Medir mercado", variant="primary")
-            mdm = gr.Markdown()
-            with gr.Row():
-                tbm1 = gr.Dataframe(label="Componentes Fear & Greed", wrap=True)
-                tbm2 = gr.Dataframe(label="Fundamentales", wrap=True)
-            bm.click(tab_mercado, [tm], [mdm, tbm1, tbm2])
-        with gr.Tab("🎯 Alpha (rigor)"):
-            gr.Markdown("**¿Hay ventaja REAL?** Dirección a corto plazo con ML (LightGBM + features "
-                        "leak-free + Hurst, walk-forward purgado) + volatilidad GARCH. Mide con test de "
-                        "significancia si el modelo bate al azar. Tarda ~1-2 min (reentrena en cada corte).")
-            with gr.Row():
-                ta = gr.Textbox(value="MSFT", label="Ticker", scale=3)
-                ha = gr.Dropdown([3, 5, 10], value=5, label="Días (dirección)")
-                pa = gr.Dropdown(["5y", "8y", "10y"], value="8y", label="Histórico")
-                ba = gr.Button("Medir ventaja", variant="primary")
-            mda = gr.Markdown()
-            ba.click(tab_alpha, [ta, ha, pa], [mda])
-        with gr.Tab("📏 Conformal"):
-            gr.Markdown("**Banda CALIBRADA** (split conformal). Arregla la banda de Prophet "
-                        "(que solo cubría 14-29% real): aquí el radio se calibra con los errores "
-                        "del walk-forward y se MIDE la cobertura. Tarda ~30-60 s.")
-            with gr.Row():
-                tc = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
-                pc = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
-                bc = gr.Button("Calibrar banda", variant="primary")
-            mdc = gr.Markdown()
-            figc = gr.Plot()
-            tblc = gr.Dataframe(wrap=True)
-            bc.click(tab_conformal, [tc, pc], [figc, tblc, mdc])
-        with gr.Tab("🛡️ Riesgo"):
-            gr.Markdown("**Riesgo de cartera**: VaR/CVaR históricos, máximo drawdown y "
-                        "correlación. Mide lo que SÍ es estimable (riesgo), no la dirección.")
-            with gr.Row():
-                tr = gr.Textbox(value="SAB.MC, BBVA.MC, IBE.MC", label="Watchlist (coma)", scale=3)
-                pr = gr.Dropdown(["1y", "3y", "5y"], value="3y", label="Histórico")
-                cr = gr.Dropdown([0.95, 0.99], value=0.95, label="Confianza VaR")
-                br = gr.Button("Medir riesgo", variant="primary")
-            figr = gr.Plot()
-            with gr.Row():
-                tblr = gr.Dataframe(label="VaR / CVaR / Drawdown", wrap=True)
-                corrr = gr.Dataframe(label="Correlación", wrap=True)
-            br.click(tab_riesgo, [tr, pr, cr], [figr, tblr, corrr])
-        with gr.Tab("🔔 Alertas"):
-            gr.Markdown("**Vigilancia de watchlist**: RSI extremo, pico de volatilidad, "
-                        "movimiento brusco, cruce de SMA50, proximidad a máx/mín 52s.")
-            with gr.Row():
-                tal = gr.Textbox(value="SAB.MC, BBVA.MC, AAPL, MSFT, NVDA", label="Watchlist (coma)", scale=4)
-                bal = gr.Button("Escanear", variant="primary")
-            mdal = gr.Markdown()
-            tblal = gr.Dataframe(wrap=True)
-            bal.click(tab_alertas, [tal], [tblal, mdal])
+                        tf = gr.Textbox(value="AAPL, MSFT, NVDA, JPM, XOM, KO, SAB.MC, ITX.MC",
+                                        label="Universo de acciones (coma)", scale=4)
+                        bf = gr.Button("Rankear", variant="primary")
+                    mdf = gr.Markdown()
+                    tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
+                    bf.click(tab_factores, [tf], [tblf, mdf])
+                with gr.Tab("★ Veredicto"):
+                    gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + ADX + "
+                                "**consenso de 5 osciladores** + MACD + momentum + volumen (OBV) + señales "
+                                "(+ consenso multi-modelo y sentimiento opcionales) → estimación "
+                                "**COMPRAR / MANTENER / VENDER** con desglose por pilar.")
+                    with gr.Row():
+                        tv = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                        pv = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                        bv = gr.Button("Analizar TODO", variant="primary")
+                    with gr.Row():
+                        mv = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM + pesados si están, +tiempo)")
+                        sv = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
+                    mdv = gr.Markdown()
+                    tbv = gr.Dataframe(label="Desglose por pilar", wrap=True)
+                    plv = gr.Plot(label="Forecast 30/90/120d")
+                    bv.click(tab_veredicto, [tv, pv, sv, mv], [plv, tbv, mdv])
+                with gr.Tab("🪙 Veredicto Cripto"):
+                    gr.Markdown("**Veredicto para criptomonedas** (BTC-USD, ETH-EUR, SOL-USD…). "
+                                "Mismo agregador pero con **forecast diario 7d**, momentum en días "
+                                "naturales y pilar de **Fear & Greed cripto** (contrarian) → "
+                                "**COMPRAR / MANTENER / VENDER**. Usa tickers Yahoo tipo `BTC-USD`.")
+                    with gr.Row():
+                        tvc = gr.Textbox(value="BTC-USD", label="Ticker cripto (BASE-FIAT)", scale=3)
+                        pvc = gr.Dropdown(["1y", "2y", "3y", "5y"], value="3y", label="Histórico")
+                        bvc = gr.Button("Analizar cripto", variant="primary")
+                    with gr.Row():
+                        mvc = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM…, +tiempo)")
+                        svc = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
+                    mdvc = gr.Markdown()
+                    tbvc = gr.Dataframe(label="Desglose por pilar", wrap=True)
+                    plvc = gr.Plot(label="Forecast cripto 30/90/120d")
+                    bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc], [plvc, tbvc, mdvc])
+                with gr.Tab("⏱️ Intradía"):
+                    gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
+                                "**backtest Opening Range Breakout con COSTES** (comisión+spread+slippage). "
+                                "Datos yfinance intradía (retraso ~15 min, histórico corto) → para *validar* "
+                                "un método, no para ejecutar en vivo. El coste se come el edge: aquí se ve.")
+                    with gr.Row():
+                        ti = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                        ii = gr.Dropdown(["5m", "15m", "30m", "60m"], value="15m", label="Intervalo")
+                        ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
+                        ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
+                    with gr.Row():
+                        bi1 = gr.Button("📷 Snapshot de hoy", variant="secondary")
+                        bi2 = gr.Button("🧪 Backtest ORB con costes", variant="primary")
+                    mdi = gr.Markdown()
+                    figi = gr.Plot()
+                    tbli = gr.Dataframe(wrap=True)
+                    bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
+                    bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
+                    gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")
+                    with gr.Row():
+                        tis = gr.Textbox(value="AAPL, MSFT, NVDA, TSLA, JPM, SAB.MC",
+                                         label="Universo (coma)", scale=4)
+                        bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
+                    bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
+                with gr.Tab("🦙 Alpaca Paper"):
+                    gr.Markdown("**Paper trading en vivo** (Alpaca · dinero FICTICIO, datos real-time IEX). "
+                                "El salto a 'vivo' sin riesgo. **Las órdenes las envías TÚ** con el botón — "
+                                "el asistente nunca opera por su cuenta. Configura `ALPACA_KEY`/`ALPACA_SECRET` en `.env`.")
+                    with gr.Row():
+                        bap = gr.Button("🔄 Refrescar cuenta y posiciones", variant="secondary")
+                    mdap = gr.Markdown()
+                    tblap = gr.Dataframe(label="Posiciones abiertas (paper)", wrap=True)
+                    gr.Markdown("**Cotización real-time**")
+                    with gr.Row():
+                        tapq = gr.Textbox(value="AAPL", label="Símbolo", scale=3)
+                        bapq = gr.Button("Precio")
+                    mdapq = gr.Markdown()
+                    gr.Markdown("---\n**Enviar orden PAPER** (la disparas tú; es dinero ficticio)")
+                    with gr.Row():
+                        taps = gr.Textbox(value="AAPL", label="Símbolo", scale=2)
+                        tapn = gr.Number(value=1, label="Cantidad")
+                        tapl = gr.Radio(["Comprar", "Vender"], value="Comprar", label="Lado")
+                        bapo = gr.Button("📨 Enviar orden PAPER", variant="primary")
+                    tapr = gr.Checkbox(value=True, label="Registrar en el diario como apertura (con nota de factores). "
+                                                         "Desmárcalo si esta orden CIERRA una posición.")
+                    mdapo = gr.Markdown()
+                    bap.click(tab_alpaca_refrescar, [], [mdap, tblap])
+                    bapq.click(tab_alpaca_precio, [tapq], [mdapq])
+                    bapo.click(tab_alpaca_orden, [taps, tapn, tapl, tapr], [mdapo, mdap, tblap])
+                    app.load(tab_alpaca_refrescar, [], [mdap, tblap])
+                with gr.Tab("📒 Diario"):
+                    gr.Markdown("**Paper trading** — registra operaciones SIMULADAS y mide si tu método "
+                                "tiene ventaja real antes de arriesgar dinero. Con 20-30 cerradas, el "
+                                "win rate y payoff de aquí alimentan el Kelly del Tamaño posición.")
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("#### Abrir operación")
+                            jt = gr.Textbox(label="Ticker", value="")
+                            with gr.Row():
+                                je = gr.Number(label="Entrada"); js = gr.Number(label="Stop")
+                                ja = gr.Number(label="Acciones", value=10, precision=0)
+                            jn = gr.Textbox(label="Nota (ej. veredicto del sistema)", value="")
+                            jshort = gr.Checkbox(label="Es venta en corto (SHORT)", value=False)
+                            jb1 = gr.Button("Abrir (simulada)", variant="primary")
+                        with gr.Column():
+                            gr.Markdown("#### Cerrar operación")
+                            jid = gr.Number(label="ID de la operación", precision=0)
+                            jx = gr.Number(label="Precio de salida")
+                            jb2 = gr.Button("Cerrar", variant="primary")
+                            jb3 = gr.Button("🔄 Refrescar diario")
+                    jmsg = gr.Markdown()
+                    jstats = gr.Textbox(label="Estadísticas (incluye Kelly para position sizer)", lines=11)
+                    jtabla = gr.Dataframe(label="Operaciones", wrap=True)
+                    jb1.click(tab_journal_abrir, [jt, je, js, ja, jn, jshort], [jmsg, jtabla, jstats])
+                    jb2.click(tab_journal_cerrar, [jid, jx], [jmsg, jtabla, jstats])
+                    jb3.click(tab_journal_refrescar, [], [jtabla, jstats])
+                    app.load(tab_journal_refrescar, [], [jtabla, jstats])
+        with gr.Tab("⚙️ Sistema algo"):
+            with gr.Tabs():
+                with gr.Tab("📡 Señales"):
+                    gr.Markdown("**Qué operar hoy**: corre el score del Veredicto sobre tu watchlist → "
+                                "ranking COMPRAR/MANTENER/VENDER. Entrada del bucle de ejecución (sizing "
+                                "→ Alpaca paper → diario). Rápido (sin Prophet).")
+                    with gr.Row():
+                        tse = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                         label="Watchlist (coma)", scale=4)
+                        use = gr.Slider(0.1, 0.6, value=0.35, step=0.05, label="Umbral señal")
+                        fse = gr.Checkbox(value=False, label="Añadir factores")
+                        bse = gr.Button("Generar señales", variant="primary")
+                    mdse = gr.Markdown()
+                    tbse = gr.Dataframe(label="Ranking de señales", wrap=True)
+                    bse.click(tab_senales_sistema, [tse, use, fse], [tbse, mdse])
+                with gr.Tab("⚖️ Plan / Riesgo"):
+                    gr.Markdown("**Cuánto operar de cada señal**: vol targeting + máx posiciones + "
+                                "stop ATR + tope de riesgo. Convierte las señales en un plan de órdenes "
+                                "concreto (acciones, coste, stop, riesgo €). Entrada del bucle de ejecución.")
+                    with gr.Row():
+                        trk = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                         label="Watchlist (coma)", scale=3)
+                        crk = gr.Number(value=10000, label="Capital €")
+                        vrk = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
+                        mrk = gr.Dropdown([3, 4, 5, 6, 8], value=5, label="Máx posiciones")
+                        urk = gr.Slider(0.1, 0.6, value=0.30, step=0.05, label="Umbral señal")
+                        brk = gr.Button("Generar plan", variant="primary")
+                    mdrk = gr.Markdown()
+                    tbrk = gr.Dataframe(label="Plan de órdenes", wrap=True)
+                    brk.click(tab_plan_riesgo, [trk, crk, vrk, mrk, urk], [tbrk, mdrk])
+                with gr.Tab("🤖 Sistema"):
+                    gr.Markdown("**El sistema completo de un clic**: señales → plan/riesgo → ejecución "
+                                "PAPER → diario. Genera el plan, revísalo, y si quieres lo mandas a Alpaca "
+                                "paper (dinero ficticio). **Las órdenes las disparas TÚ** con confirmación.")
+                    with gr.Row():
+                        tsy = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                         label="Watchlist (coma)", scale=3)
+                        csy = gr.Number(value=10000, label="Capital €")
+                        vsy = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
+                        msy = gr.Dropdown([3, 4, 5, 6, 8], value=5, label="Máx pos.")
+                        usy = gr.Slider(0.1, 0.6, value=0.30, step=0.05, label="Umbral")
+                    with gr.Row():
+                        bsy1 = gr.Button("1) Generar plan de hoy", variant="secondary")
+                        conf = gr.Checkbox(value=False, label="Confirmo enviar a PAPER (dinero ficticio)")
+                        bsy2 = gr.Button("2) ▶️ Ejecutar en PAPER", variant="primary")
+                    mdsy = gr.Markdown()
+                    tbsy = gr.Dataframe(label="Plan / Resultado", wrap=True)
+                    bsy1.click(tab_sistema_plan, [tsy, csy, vsy, msy, usy], [tbsy, mdsy])
+                    bsy2.click(tab_sistema_ejecutar, [tsy, csy, vsy, msy, usy, conf], [tbsy, mdsy])
+                with gr.Tab("📈 Rendimiento"):
+                    gr.Markdown("**¿Bates al mercado?** Curva de equity del diario + métricas "
+                                "(win rate, profit factor, expectancy, drawdown) y comparación **vs SPY** "
+                                "(comprar y mantener). El listón honesto: si no bates a indexarte, mejor indexarse.")
+                    with gr.Row():
+                        cpf = gr.Number(value=10000, label="Capital inicial €")
+                        bpf_t = gr.Textbox(value="SPY", label="Benchmark", scale=2)
+                        bpf = gr.Button("Medir rendimiento", variant="primary")
+                    mdpf = gr.Markdown()
+                    figpf = gr.Plot()
+                    bpf.click(tab_rendimiento, [cpf, bpf_t], [figpf, mdpf])
+                with gr.Tab("🎲 Monte Carlo"):
+                    gr.Markdown("**El abanico de lo posible** (no predicción). **Precio**: miles de "
+                                "trayectorias futuras (bootstrap de retornos). **Sistema**: bootstrap de "
+                                "operaciones → prob. de acabar positivo, drawdown y **prob. de ruina**.")
+                    gr.Markdown("#### Monte Carlo de PRECIO")
+                    with gr.Row():
+                        tmc = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                        hmc = gr.Dropdown([30, 60, 90, 120, 252], value=90, label="Horizonte (días)")
+                        emc = gr.Dropdown(["bootstrap", "gbm"], value="bootstrap", label="Método")
+                        bmc1 = gr.Button("Simular precio", variant="primary")
+                    mdmc1 = gr.Markdown()
+                    figmc1 = gr.Plot()
+                    bmc1.click(tab_mc_precio, [tmc, hmc, emc], [figmc1, mdmc1])
+                    gr.Markdown("---\n#### Monte Carlo del SISTEMA (robustez)")
+                    with gr.Row():
+                        wmc = gr.Slider(0.3, 0.7, value=0.55, step=0.01, label="Win rate")
+                        pmc = gr.Slider(0.5, 3.0, value=1.5, step=0.1, label="Payoff (G/P)")
+                        rmc = gr.Slider(0.25, 3.0, value=1.0, step=0.25, label="Riesgo/op %")
+                        nmc = gr.Dropdown([30, 50, 100, 200], value=50, label="Nº operaciones")
+                        dmc = gr.Checkbox(value=False, label="Usar mi diario real")
+                        bmc2 = gr.Button("Simular sistema", variant="primary")
+                    mdmc2 = gr.Markdown()
+                    figmc2 = gr.Plot()
+                    bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
+                with gr.Tab("📊 Backtest Sistema"):
+                    gr.Markdown("**Backtest de la estrategia completa** sobre el histórico: compra el "
+                                "**top-N** por score del Veredicto, rebalancea, **resta costes**, y compara "
+                                "con **SPY** buy & hold. Un backtest que bate a SPY mide, no promete.")
+                    with gr.Row():
+                        tsb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                         label="Universo (coma)", scale=3)
+                        nsb = gr.Dropdown([2, 3, 4, 5], value=3, label="Top-N")
+                        rsb = gr.Dropdown([5, 10, 21, 42], value=21, label="Rebal (días)")
+                        csb = gr.Number(value=10, label="Coste bps")
+                        psb = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                        bsb = gr.Button("Backtestear", variant="primary")
+                    mdsb = gr.Markdown()
+                    figsb = gr.Plot()
+                    bsb.click(tab_system_backtest, [tsb, nsb, rsb, csb, psb], [figsb, mdsb])
+                with gr.Tab("🔬 Validar Veredicto"):
+                    gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
+                                "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "
+                                "Sharpe long-short y **Deflated Sharpe** (corrige multiple-testing). "
+                                "El paso obligatorio antes de automatizar. Tarda ~1 min.")
+                    with gr.Row():
+                        tvb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                                         label="Universo (coma)", scale=4)
+                        hvb = gr.Dropdown([5, 10, 20], value=10, label="Horizonte (días)")
+                        trvb = gr.Number(value=20, label="Nº pruebas (deflación)")
+                        bvb = gr.Button("Validar", variant="primary")
+                    mdvb = gr.Markdown()
+                    bvb.click(tab_validar_veredicto, [tvb, hvb, trvb], [mdvb])
+        with gr.Tab("🔬 Cuant avanzado"):
+            with gr.Tabs():
+                with gr.Tab("🔗 Pairs (cointegración)"):
+                    gr.Markdown("**Arbitraje estadístico market-neutral**: busca pares COINTEGRADOS "
+                                "(Engle-Granger) con reversión a la media (half-life Ornstein-Uhlenbeck). "
+                                "Largo el barato / corto el caro cuando el z-score del spread es extremo.")
+                    with gr.Row():
+                        tpr = gr.Textbox(value="KO, PEP, XOM, CVX, V, MA, JPM, BAC, GLD, SLV",
+                                         label="Universo (coma)", scale=4)
+                        ppr = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                        bpr = gr.Button("Buscar pares", variant="primary")
+                    mdpr = gr.Markdown()
+                    tbpr = gr.Dataframe(label="Pares cointegrados", wrap=True)
+                    bpr.click(tab_pairs, [tpr, ppr], [tbpr, mdpr])
+                with gr.Tab("🧮 HRP Cartera"):
+                    gr.Markdown("**Asignación robusta**: HRP (López de Prado) + Min-Var con **Ledoit-Wolf** "
+                                "vs equiponderada, medido **fuera de muestra**. Arregla la inestabilidad de "
+                                "Markowitz (no invierte la covarianza).")
+                    with gr.Row():
+                        thr = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, JPM, XOM, KO, GLD, TLT",
+                                         label="Activos (coma)", scale=4)
+                        phr = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
+                        bhr = gr.Button("Comparar asignación", variant="primary")
+                    mdhr = gr.Markdown()
+                    with gr.Row():
+                        tbhr = gr.Dataframe(label="HRP vs Min-Var vs Equal (OOS)", wrap=True)
+                        whr = gr.Dataframe(label="Pesos HRP", wrap=True)
+                    bhr.click(tab_hrp, [thr, phr], [tbhr, whr, mdhr])
+                with gr.Tab("📉 EVT Colas"):
+                    gr.Markdown("**Riesgo de cola (crash)** con Teoría de Valores Extremos: ajusta una "
+                                "Pareto Generalizada a la cola (POT) → VaR/ES extremos. Compara con histórico "
+                                "y normal: se ve cuánto **subestima la normal** el riesgo de crash.")
+                    with gr.Row():
+                        tev = gr.Textbox(value="SPY", label="Ticker", scale=3)
+                        pev = gr.Dropdown(["5y", "8y", "10y", "max"], value="10y", label="Histórico")
+                        uev = gr.Slider(0.90, 0.98, value=0.95, step=0.01, label="Umbral cola (cuantil u)")
+                        bev = gr.Button("Medir cola", variant="primary")
+                    mdev = gr.Markdown()
+                    bev.click(tab_evt, [tev, pev, uev], [mdev])
+                with gr.Tab("🌀 Régimen (HMM)"):
+                    gr.Markdown("**¿En qué régimen estamos?** Hidden Markov Model (gaussiano) identifica "
+                                "estados ocultos: 🟢 calma alcista, 🔴 alta volatilidad, 🟡 lateral. Úsalo "
+                                "como GATE: opera tendencia en 🟢, recorta en 🔴.")
+                    with gr.Row():
+                        thm = gr.Textbox(value="SPY", label="Ticker", scale=3)
+                        nhm = gr.Dropdown([2, 3, 4], value=3, label="Nº regímenes")
+                        phm = gr.Dropdown(["5y", "8y", "10y", "max"], value="8y", label="Histórico")
+                        bhm = gr.Button("Detectar régimen", variant="primary")
+                    mdhm = gr.Markdown()
+                    fighm = gr.Plot()
+                    bhm.click(tab_hmm, [thm, nhm, phm], [fighm, mdhm])
+                with gr.Tab("🎯 Meta-labeling"):
+                    gr.Markdown("**¿Actuar o no sobre la señal?** Meta-labeling (López de Prado): un 2º "
+                                "modelo ML filtra las señales primarias malas (tendencia) → menos trades, "
+                                "mejor precisión. La probabilidad sirve para dimensionar. Tarda ~1-2 min.")
+                    with gr.Row():
+                        tme = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                        hme = gr.Dropdown([3, 5, 10], value=5, label="Horizonte (días)")
+                        ume = gr.Slider(0.5, 0.7, value=0.55, step=0.01, label="Umbral prob.")
+                        pme = gr.Dropdown(["5y", "8y", "10y"], value="8y", label="Histórico")
+                        bme = gr.Button("Medir meta-labeling", variant="primary")
+                    mdme = gr.Markdown()
+                    bme.click(tab_meta, [tme, hme, ume, pme], [mdme])
+                with gr.Tab("🧲 RMT (correlación)"):
+                    gr.Markdown("**Limpia la matriz de correlación** con Random Matrix Theory (econofísica). "
+                                "Marchenko-Pastur separa señal de ruido: solo los autovalores sobre λ+ son "
+                                "reales. Mejora la asignación (no optimiza sobre ruido). Compara OOS.")
+                    with gr.Row():
+                        trm = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT, GLD, TLT, XLE, XLF",
+                                         label="Activos (coma, ≥4)", scale=4)
+                        prm = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
+                        brm = gr.Button("Limpiar correlación", variant="primary")
+                    mdrm = gr.Markdown()
+                    figrm = gr.Plot()
+                    brm.click(tab_rmt, [trm, prm], [figrm, mdrm])
+                with gr.Tab("🛰️ Kalman (pairs)"):
+                    gr.Markdown("**Hedge ratio DINÁMICO** para pairs trading con filtro de Kalman. El β entre "
+                                "dos activos deriva en el tiempo; Kalman lo estima día a día (mejor que el β "
+                                "fijo OLS). Operas el z-score del spread. Pares clásicos: KO/PEP, EWA/EWC, V/MA.")
+                    with gr.Row():
+                        tka = gr.Textbox(value="EWA", label="Activo A", scale=2)
+                        tkb = gr.Textbox(value="EWC", label="Activo B", scale=2)
+                        pka = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                        bka = gr.Button("Kalman dinámico", variant="primary")
+                    mdka = gr.Markdown()
+                    figka = gr.Plot()
+                    bka.click(tab_kalman, [tka, tkb, pka], [figka, mdka])
+                with gr.Tab("📡 Entropía (lead-lag)"):
+                    gr.Markdown("**¿Qué activo lidera a cuál?** Entropía de transferencia (teoría de la "
+                                "información): flujo de información direccional y NO lineal que la correlación "
+                                "no ve. Líderes vs seguidores. Útil para lead-lag y selección de features.")
+                    with gr.Row():
+                        tte = gr.Textbox(value="SPY, QQQ, TLT, GLD, HYG, XLF, XLE",
+                                         label="Activos (coma, ≥3)", scale=4)
+                        bte_n = gr.Dropdown([3, 4, 5], value=3, label="Bins")
+                        pte = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                        bte = gr.Button("Medir flujo info", variant="primary")
+                    mdte = gr.Markdown()
+                    figte = gr.Plot()
+                    bte.click(tab_te, [tte, bte_n, pte], [figte, mdte])
+        with gr.Tab("🛠️ Análisis"):
+            with gr.Tabs():
+                with gr.Tab("1 · Forecast"):
+                    with gr.Row():
+                        t = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
+                        p = gr.Dropdown(["2y","3y","5y","10y"], value="3y", label="Histórico")
+                        motor = gr.Dropdown(["Prophet (rápido)", "LSTM (red neuronal)",
+                                             "NeuralProphet (AR-Net)", "AutoGluon (2 min, cuantiles)"],
+                                            value="Prophet (rápido)", label="Motor")
+                        b = gr.Button("Forecast", variant="primary")
+                    pl = gr.Plot(); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()
+                    b.click(tab_forecast, [t, p, motor], [pl, tb, md])
+                with gr.Tab("2 · Indicadores"):
+                    with gr.Row():
+                        t2 = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                        p2 = gr.Dropdown(["6mo","1y","2y"], value="1y", label="Histórico")
+                        b2 = gr.Button("Calcular", variant="primary")
+                    pl2 = gr.Plot(); tb2 = gr.Dataframe(label="Señales")
+                    b2.click(tab_indicadores, [t2, p2], [pl2, tb2])
+                with gr.Tab("3 · Screener"):
+                    t3 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers (espacio/coma)")
+                    b3 = gr.Button("Escanear", variant="primary"); tb3 = gr.Dataframe(label="Ranking")
+                    b3.click(tab_screener, t3, tb3)
+                with gr.Tab("4 · Señales"):
+                    t4 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers")
+                    b4 = gr.Button("Buscar señales", variant="primary"); tb4 = gr.Dataframe(label="Señales accionables")
+                    b4.click(tab_signals, t4, tb4)
+                with gr.Tab("5 · Backtest"):
+                    with gr.Row():
+                        t5 = gr.Textbox(value="AAPL", label="Ticker", scale=2)
+                        st = gr.Dropdown(["sma","rsi","bb"], value="sma", label="Estrategia")
+                        fa = gr.Number(value=50, label="SMA rápida"); sl = gr.Number(value=200, label="SMA lenta")
+                        p5 = gr.Dropdown(["2y","5y","10y"], value="5y", label="Histórico")
+                        b5 = gr.Button("Backtest", variant="primary")
+                    pl5 = gr.Plot(); md5 = gr.Markdown()
+                    b5.click(tab_backtest, [t5, st, fa, sl, p5], [pl5, md5])
+                with gr.Tab("6 · Correlación"):
+                    with gr.Row():
+                        t6 = gr.Textbox(value="AAPL MSFT TLT GLD", label="Tickers", scale=3)
+                        p6 = gr.Dropdown(["1y","2y","3y"], value="2y", label="Histórico")
+                        b6 = gr.Button("Correlación", variant="primary")
+                    pl6 = gr.Plot(); tb6 = gr.Dataframe(label="Matriz")
+                    b6.click(tab_corr, [t6, p6], [pl6, tb6])
+                with gr.Tab("7 · Cartera"):
+                    with gr.Row():
+                        t7 = gr.Textbox(value="AAPL MSFT NVDA GOOGL", label="Tickers", scale=3)
+                        p7 = gr.Dropdown(["2y","3y","5y"], value="3y", label="Histórico")
+                        rf = gr.Number(value=0.0, label="Tasa libre riesgo (0.03=3%)")
+                        b7 = gr.Button("Optimizar", variant="primary")
+                    pl7 = gr.Plot(); md7 = gr.Markdown()
+                    b7.click(tab_cartera, [t7, p7, rf], [pl7, md7])
+        with gr.Tab("📚 Contexto y riesgo"):
+            with gr.Tabs():
+                with gr.Tab("8 · Sentimiento"):
+                    gr.Markdown("Noticias del ticker analizadas con **FinBERT** + entidades. "
+                                "⏳ La **primera** consulta carga los modelos (~1 min); las siguientes van rápido.")
+                    with gr.Row():
+                        t8 = gr.Textbox(value="AAPL", label="Ticker", scale=3)
+                        n8 = gr.Slider(3, 20, value=10, step=1, label="Nº noticias")
+                        b8 = gr.Button("Analizar noticias", variant="primary")
+                    md8 = gr.Markdown(); tb8 = gr.Dataframe(label="Titulares analizados", wrap=True)
+                    b8.click(tab_sentiment, [t8, n8], [tb8, md8])
+                with gr.Tab("9 · Tamaño posición"):
+                    gr.Markdown("Cuántas acciones comprar arriesgando un % fijo. Da Entrada+Stop, "
+                                "o solo Ticker para stop automático por ATR.")
+                    with gr.Row():
+                        t9 = gr.Textbox(value="", label="Ticker (opcional)", scale=2)
+                        c9 = gr.Number(value=10000, label="Capital €")
+                        r9 = gr.Number(value=1.0, label="Riesgo %")
+                    with gr.Row():
+                        e9 = gr.Number(value=0, label="Entrada (0=auto)")
+                        s9 = gr.Number(value=0, label="Stop (0=auto)")
+                        a9 = gr.Number(value=2.0, label="Múltiplo ATR")
+                        b9 = gr.Button("Calcular", variant="primary")
+                    md9 = gr.Markdown()
+                    b9.click(tab_sizer, [t9, c9, r9, e9, s9, a9], [md9])
+                with gr.Tab("🌡️ Mercado"):
+                    gr.Markdown("Contexto ANTES de mirar tickers: **Fear & Greed** (bolsa y cripto), "
+                                "**VIX** con régimen de volatilidad, y fundamentales del ticker que quieras.")
+                    with gr.Row():
+                        tm = gr.Textbox(value="SAB.MC", label="Ticker para fundamentales (opcional)", scale=3)
+                        bm = gr.Button("Medir mercado", variant="primary")
+                    mdm = gr.Markdown()
+                    with gr.Row():
+                        tbm1 = gr.Dataframe(label="Componentes Fear & Greed", wrap=True)
+                        tbm2 = gr.Dataframe(label="Fundamentales", wrap=True)
+                    bm.click(tab_mercado, [tm], [mdm, tbm1, tbm2])
+                with gr.Tab("🎯 Alpha (rigor)"):
+                    gr.Markdown("**¿Hay ventaja REAL?** Dirección a corto plazo con ML (LightGBM + features "
+                                "leak-free + Hurst, walk-forward purgado) + volatilidad GARCH. Mide con test de "
+                                "significancia si el modelo bate al azar. Tarda ~1-2 min (reentrena en cada corte).")
+                    with gr.Row():
+                        ta = gr.Textbox(value="MSFT", label="Ticker", scale=3)
+                        ha = gr.Dropdown([3, 5, 10], value=5, label="Días (dirección)")
+                        pa = gr.Dropdown(["5y", "8y", "10y"], value="8y", label="Histórico")
+                        ba = gr.Button("Medir ventaja", variant="primary")
+                    mda = gr.Markdown()
+                    ba.click(tab_alpha, [ta, ha, pa], [mda])
+                with gr.Tab("📏 Conformal"):
+                    gr.Markdown("**Banda CALIBRADA** (split conformal). Arregla la banda de Prophet "
+                                "(que solo cubría 14-29% real): aquí el radio se calibra con los errores "
+                                "del walk-forward y se MIDE la cobertura. Tarda ~30-60 s.")
+                    with gr.Row():
+                        tc = gr.Textbox(value="SAB.MC", label="Ticker", scale=3)
+                        pc = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                        bc = gr.Button("Calibrar banda", variant="primary")
+                    mdc = gr.Markdown()
+                    figc = gr.Plot()
+                    tblc = gr.Dataframe(wrap=True)
+                    bc.click(tab_conformal, [tc, pc], [figc, tblc, mdc])
+                with gr.Tab("🛡️ Riesgo"):
+                    gr.Markdown("**Riesgo de cartera**: VaR/CVaR históricos, máximo drawdown y "
+                                "correlación. Mide lo que SÍ es estimable (riesgo), no la dirección.")
+                    with gr.Row():
+                        tr = gr.Textbox(value="SAB.MC, BBVA.MC, IBE.MC", label="Watchlist (coma)", scale=3)
+                        pr = gr.Dropdown(["1y", "3y", "5y"], value="3y", label="Histórico")
+                        cr = gr.Dropdown([0.95, 0.99], value=0.95, label="Confianza VaR")
+                        br = gr.Button("Medir riesgo", variant="primary")
+                    figr = gr.Plot()
+                    with gr.Row():
+                        tblr = gr.Dataframe(label="VaR / CVaR / Drawdown", wrap=True)
+                        corrr = gr.Dataframe(label="Correlación", wrap=True)
+                    br.click(tab_riesgo, [tr, pr, cr], [figr, tblr, corrr])
+                with gr.Tab("🔔 Alertas"):
+                    gr.Markdown("**Vigilancia de watchlist**: RSI extremo, pico de volatilidad, "
+                                "movimiento brusco, cruce de SMA50, proximidad a máx/mín 52s.")
+                    with gr.Row():
+                        tal = gr.Textbox(value="SAB.MC, BBVA.MC, AAPL, MSFT, NVDA", label="Watchlist (coma)", scale=4)
+                        bal = gr.Button("Escanear", variant="primary")
+                    mdal = gr.Markdown()
+                    tblal = gr.Dataframe(wrap=True)
+                    bal.click(tab_alertas, [tal], [tblal, mdal])
     return app
 
 

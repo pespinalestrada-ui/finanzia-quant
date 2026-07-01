@@ -40,7 +40,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "performance", SUITE / "pairs_trading", SUITE / "hrp_portfolio",
           SUITE / "evt_risk", SUITE / "montecarlo", SUITE / "system_backtest",
           SUITE / "hmm_regime", SUITE / "meta_labeling", SUITE / "rmt_clean",
-          SUITE / "kalman_hedge", SUITE / "transfer_entropy"]:
+          SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
+          SUITE / "informe"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -61,12 +62,12 @@ import time as _time
 _DL_CACHE = {}                                 # (ticker,period) -> (ts, df). TTL en proceso.
 _DL_TTL = 1800                                 # 30 min: evita re-descargar el mismo ticker entre pestañas
 
-def _dl(ticker, period="1y"):
-    key = (ticker.upper(), period)
+def _dl(ticker, period="1y", adjust=False):
+    key = (ticker.upper(), period, adjust)
     hit = _DL_CACHE.get(key)
     if hit and (_time.time() - hit[0]) < _DL_TTL:
         return hit[1].copy()
-    h = yf.Ticker(ticker).history(period=period, auto_adjust=False)
+    h = yf.Ticker(ticker).history(period=period, auto_adjust=adjust)
     if h.empty:
         raise ValueError(f"Ticker '{ticker}' sin datos.")
     h = h.reset_index()
@@ -168,7 +169,7 @@ def tab_signals(txt):
 # ---- 5. Backtest ----------------------------------------------------------
 def tab_backtest(ticker, strat, fast, slow, period):
     try:
-        h = _dl(ticker, period)
+        h = _dl(ticker, period, adjust=True)   # total return: dividendos incluidos
         pos = BT.señales(h, strat, int(fast), int(slow))
         rm = h["Close"].pct_change().fillna(0)
         rs = pos * rm - pos.diff().abs().fillna(0) * 0.001
@@ -769,6 +770,84 @@ def tab_intraday_snapshot(ticker, interval, or_min):
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
 
 
+def tab_informe_semanal():
+    try:
+        import informe_semanal as INF
+        ruta = INF.generar()
+        return (f"✅ Informe generado: **{ruta}**\n\n"
+                f"(Señales de tu watchlist + riesgo + titulares. Ábrelo con Word.)")
+    except Exception as e:
+        return f"**Error:** {e}"
+
+
+def tab_cartera_lp_crear(txt, capital):
+    try:
+        import rebalance as RB
+        tickers = _parse(txt)
+        if len(tickers) < 3:
+            return pd.DataFrame(), "Mete al menos 3 activos."
+        plan, meta = RB.crear(tickers, float(capital))
+        md = (f"**Cartera creada y guardada** · invertido {meta['invertido']:,.0f} € de "
+              f"{meta['capital']:,.0f} € (cash restante {meta['cash']:,.0f} €).\n\n"
+              f"> Compra esas acciones (o pruébalo en paper). Vuelve ~1 vez al MES y pulsa "
+              f"'Revisar rebalanceo': te dirá qué ajustar. Dividendos incluidos (total return).")
+        return plan, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_cartera_lp_revisar():
+    try:
+        import rebalance as RB
+        tabla, meta = RB.revisar()
+        md = (f"**Revisión de rebalanceo** · valor actual {meta['valor_total']:,.0f} € · "
+              f"**{meta['n_ordenes']} órdenes de ajuste** (solo desvíos > 2.5 pp).\n\n"
+              f"> Ejecuta las órdenes marcadas (o en paper) y pulsa 'He rebalanceado' para "
+              f"actualizar la cartera guardada.")
+        return tabla, md
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_cartera_lp_aplicar():
+    try:
+        import rebalance as RB
+        tabla, _ = RB.revisar()
+        RB.aplicar_ordenes(tabla)
+        tabla2, meta = RB.revisar()
+        return tabla2, f"✅ Cartera actualizada con las órdenes. Valor {meta['valor_total']:,.0f} €."
+    except Exception as e:
+        return pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_dca(txt, total, anios):
+    try:
+        import rebalance as RB
+        tickers = _parse(txt)
+        if not tickers:
+            return _err_fig("Mete activos."), pd.DataFrame(), "Mete activos."
+        tabla, meta, curvas = RB.comparar_dca(tickers, float(total), int(anios))
+        fig = RB._plot_dca(curvas, tickers)
+        md = (f"**Gana: {meta['gana']}** (en este periodo). {meta['n_meses']} aportes de "
+              f"~{meta['aporte_mes']:,.0f} €/mes vs todo al inicio.\n\n"
+              f"> Históricamente la entrada única gana ~2 de cada 3 veces (el mercado sube más "
+              f"tiempo del que baja), pero el DCA reduce el riesgo de entrar en el peor momento "
+              f"y es más llevadero psicológicamente. Dividendos incluidos. No es recomendación.")
+        return fig, tabla, md
+    except Exception as e:
+        return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
+
+
+def tab_intraday_semaforo(ticker, or_min):
+    """Semáforo del día: opera largo / corto / no operes hoy."""
+    try:
+        import intraday as IN
+        fig, tabla, md = IN.semaforo(ticker.strip().upper(), int(or_min))
+        return fig, tabla, md
+    except Exception as e:
+        return _err_fig(f"{e}"), pd.DataFrame(), f"**No disponible:** {e}"
+
+
 def tab_intraday_live(ticker, or_min):
     """Snapshot intradía EN VIVO con Alpaca (IEX). Fallback con mensaje claro."""
     try:
@@ -779,11 +858,11 @@ def tab_intraday_live(ticker, or_min):
         return _err_fig(f"{e}"), pd.DataFrame(), f"**No disponible:** {e}"
 
 
-def tab_intraday_backtest(ticker, interval, or_min, coste_bps):
+def tab_intraday_backtest(ticker, interval, or_min, coste_bps, estrategia="orb"):
     try:
         import intraday as IN
         df = IN.descargar(ticker.strip().upper(), interval)
-        bt = IN.backtest_orb(df, int(or_min), interval, float(coste_bps))
+        bt = IN.backtest_estrategia(df, estrategia, int(or_min), interval, float(coste_bps))
         mt = IN.metricas_backtest(bt, float(coste_bps))
         if mt["n"] == 0:
             return pd.DataFrame(), f"**{ticker.upper()}:** {mt['mensaje']}"
@@ -839,6 +918,16 @@ def tab_alpaca_orden(symbol, qty, lado, registrar):
         symbol = (symbol or "").strip().upper()
         if not symbol or float(qty) <= 0:
             return "Indica símbolo y cantidad > 0.", "", pd.DataFrame()
+        # freno de pérdida diaria: si hoy pierdes más del límite, no más órdenes
+        try:
+            fr = AP.freno_diario()
+            if fr["bloqueado"]:
+                return (f"🛑 **FRENO DIARIO ACTIVO**: hoy la cuenta pierde {fr['pct']}% "
+                        f"(límite −{fr['limite_pct']}%). No se envían más órdenes hoy — "
+                        f"parar a tiempo es la regla nº1. (Ajustable con FRENO_DIARIO_PCT en el .env.)",
+                        "", pd.DataFrame())
+        except Exception:
+            pass
         side = "buy" if lado == "Comprar" else "sell"
         o = AP.enviar_orden(symbol, float(qty), side)
         msg = (f"✅ Orden PAPER enviada: **{o['side']} {o['qty']} {o['symbol']}** · "
@@ -873,13 +962,13 @@ def tab_alpaca_orden(symbol, qty, lado, registrar):
         return f"**Error:** {e}", "", pd.DataFrame()
 
 
-def tab_intraday_scan(txt, interval, or_min, coste_bps):
+def tab_intraday_scan(txt, interval, or_min, coste_bps, estrategia="orb"):
     try:
         import intraday as IN
         tickers = _parse(txt)
         if len(tickers) < 2:
             return pd.DataFrame(), "Mete **al menos 2** tickers para escanear."
-        tabla = IN.escanear(tickers, interval, int(or_min), float(coste_bps))
+        tabla = IN.escanear(tickers, interval, int(or_min), float(coste_bps), estrategia)
         if tabla.empty:
             return pd.DataFrame(), "Ningún ticker con operaciones (mercado cerrado/histórico corto/sin roturas)."
         ganan = tabla[tabla["Edge neto"].str.startswith("SÍ")]["Ticker"].tolist()
@@ -1138,6 +1227,30 @@ def tab_validar_veredicto(txt, horizon, trials):
         return f"**Error:** {e}"
 
 
+# ---- Watchlist única persistente (compartida por todas las pestañas) -------
+_WL_FILE = PROJ / "watchlist.txt"
+_WL_DEFAULT = "AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, SAB.MC"
+
+def _wl_load():
+    try:
+        if _WL_FILE.exists():
+            txt = _WL_FILE.read_text(encoding="utf-8").strip()
+            if txt:
+                return ", ".join(t.strip().upper() for t in txt.replace("\n", ",").split(",") if t.strip())
+    except Exception:
+        pass
+    return _WL_DEFAULT
+
+def _wl_save(txt):
+    limpio = ", ".join(t.strip().upper() for t in (txt or "").replace("\n", ",").split(",") if t.strip())
+    if not limpio:
+        actual = _wl_load()
+        return ("⚠️ Watchlist vacía: mantengo la anterior.", *([actual] * 11))
+    _WL_FILE.write_text(limpio, encoding="utf-8")
+    return (f"✅ Watchlist guardada ({limpio.count(',') + 1} valores). Aplicada a todas las pestañas.",
+            *([limpio] * 11))
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
@@ -1147,6 +1260,12 @@ def build():
         gr.Markdown("# FinanzIA — Mesa cuantitativa")
         gr.Markdown("Suite de trading algorítmico. Datos Yahoo Finance (retardo ~15 min). "
                     "Análisis y educación — **no es recomendación de inversión**.")
+        WL = _wl_load()
+        with gr.Accordion("💾 Mi watchlist (compartida por todas las pestañas)", open=False):
+            with gr.Row():
+                wtxt = gr.Textbox(value=WL, label="Tus valores (separados por coma)", scale=4)
+                wbtn = gr.Button("Guardar watchlist", variant="primary")
+            wmd = gr.Markdown()
         with gr.Tab("🎯 Operar"):
             with gr.Tabs():
                 with gr.Tab("📊 Factores"):
@@ -1155,7 +1274,7 @@ def build():
                                 "(z-score cruzado). Compra el top, evita el fondo. Tarda ~1-3 s/acción "
                                 "(descarga fundamentales).")
                     with gr.Row():
-                        tf = gr.Textbox(value="AAPL, MSFT, NVDA, JPM, XOM, KO, SAB.MC, ITX.MC",
+                        tf = gr.Textbox(value=WL,
                                         label="Universo de acciones (coma)", scale=4)
                         bf = gr.Button("Rankear", variant="primary")
                     mdf = gr.Markdown()
@@ -1207,22 +1326,26 @@ def build():
                         ii = gr.Dropdown(["5m", "15m", "30m", "60m"], value="15m", label="Intervalo")
                         ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
                         ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
+                        esti = gr.Dropdown(["orb", "vwap", "ema9"], value="orb",
+                                           label="Estrategia (backtest)")
                     with gr.Row():
-                        bi0 = gr.Button("📡 Snapshot EN VIVO (Alpaca, EEUU)", variant="primary")
+                        bsem = gr.Button("🚦 Semáforo de HOY (¿opero o no?)", variant="primary")
+                        bi0 = gr.Button("📡 Snapshot EN VIVO (Alpaca, EEUU)", variant="secondary")
                         bi1 = gr.Button("📷 Snapshot yfinance (~15 min retraso)", variant="secondary")
                         bi2 = gr.Button("🧪 Backtest ORB con costes", variant="secondary")
                     mdi = gr.Markdown()
                     figi = gr.Plot()
                     tbli = gr.Dataframe(wrap=True)
+                    bsem.click(tab_intraday_semaforo, [ti, ori], [figi, tbli, mdi])
                     bi0.click(tab_intraday_live, [ti, ori], [figi, tbli, mdi])
                     bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
-                    bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
+                    bi2.click(tab_intraday_backtest, [ti, ii, ori, ci, esti], [tbli, mdi])
                     gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")
                     with gr.Row():
-                        tis = gr.Textbox(value="AAPL, MSFT, NVDA, TSLA, JPM, SAB.MC",
+                        tis = gr.Textbox(value=WL,
                                          label="Universo (coma)", scale=4)
                         bi3 = gr.Button("🔭 Escanear varios (rank por exp. neta)", variant="primary")
-                    bi3.click(tab_intraday_scan, [tis, ii, ori, ci], [tbli, mdi])
+                    bi3.click(tab_intraday_scan, [tis, ii, ori, ci, esti], [tbli, mdi])
                 with gr.Tab("🦙 Alpaca Paper"):
                     gr.Markdown("**Paper trading en vivo** (Alpaca · dinero FICTICIO, datos real-time IEX). "
                                 "El salto a 'vivo' sin riesgo. **Las órdenes las envías TÚ** con el botón — "
@@ -1283,7 +1406,7 @@ def build():
                                 "ranking COMPRAR/MANTENER/VENDER. Entrada del bucle de ejecución (sizing "
                                 "→ Alpaca paper → diario). Rápido (sin Prophet).")
                     with gr.Row():
-                        tse = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                        tse = gr.Textbox(value=WL,
                                          label="Watchlist (coma)", scale=4)
                         use = gr.Slider(0.1, 0.6, value=0.35, step=0.05, label="Umbral señal")
                         fse = gr.Checkbox(value=False, label="Añadir factores")
@@ -1296,7 +1419,7 @@ def build():
                                 "stop ATR + tope de riesgo. Convierte las señales en un plan de órdenes "
                                 "concreto (acciones, coste, stop, riesgo €). Entrada del bucle de ejecución.")
                     with gr.Row():
-                        trk = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                        trk = gr.Textbox(value=WL,
                                          label="Watchlist (coma)", scale=3)
                         crk = gr.Number(value=10000, label="Capital €")
                         vrk = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
@@ -1311,7 +1434,7 @@ def build():
                                 "PAPER → diario. Genera el plan, revísalo, y si quieres lo mandas a Alpaca "
                                 "paper (dinero ficticio). **Las órdenes las disparas TÚ** con confirmación.")
                     with gr.Row():
-                        tsy = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                        tsy = gr.Textbox(value=WL,
                                          label="Watchlist (coma)", scale=3)
                         csy = gr.Number(value=10000, label="Capital €")
                         vsy = gr.Slider(0.08, 0.30, value=0.15, step=0.01, label="Vol objetivo")
@@ -1365,7 +1488,7 @@ def build():
                                 "**top-N** por score del Veredicto, rebalancea, **resta costes**, y compara "
                                 "con **SPY** buy & hold. Un backtest que bate a SPY mide, no promete.")
                     with gr.Row():
-                        tsb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                        tsb = gr.Textbox(value=WL,
                                          label="Universo (coma)", scale=3)
                         nsb = gr.Dropdown([2, 3, 4, 5], value=3, label="Top-N")
                         rsb = gr.Dropdown([5, 10, 21, 42], value=21, label="Rebal (días)")
@@ -1381,7 +1504,7 @@ def build():
                                 "Sharpe long-short y **Deflated Sharpe** (corrige multiple-testing). "
                                 "El paso obligatorio antes de automatizar. Tarda ~1 min.")
                     with gr.Row():
-                        tvb = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, WMT",
+                        tvb = gr.Textbox(value=WL,
                                          label="Universo (coma)", scale=4)
                         hvb = gr.Dropdown([5, 10, 20], value=10, label="Horizonte (días)")
                         trvb = gr.Number(value=20, label="Nº pruebas (deflación)")
@@ -1508,11 +1631,11 @@ def build():
                     pl2 = gr.Plot(); tb2 = gr.Dataframe(label="Señales")
                     b2.click(tab_indicadores, [t2, p2], [pl2, tb2])
                 with gr.Tab("3 · Screener"):
-                    t3 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers (espacio/coma)")
+                    t3 = gr.Textbox(value=WL, label="Tickers (espacio/coma)")
                     b3 = gr.Button("Escanear", variant="primary"); tb3 = gr.Dataframe(label="Ranking")
                     b3.click(tab_screener, t3, tb3)
                 with gr.Tab("4 · Señales"):
-                    t4 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers")
+                    t4 = gr.Textbox(value=WL, label="Tickers")
                     b4 = gr.Button("Buscar señales", variant="primary"); tb4 = gr.Dataframe(label="Señales accionables")
                     b4.click(tab_signals, t4, tb4)
                 with gr.Tab("5 · Backtest"):
@@ -1602,7 +1725,7 @@ def build():
                     gr.Markdown("**Riesgo de cartera**: VaR/CVaR históricos, máximo drawdown y "
                                 "correlación. Mide lo que SÍ es estimable (riesgo), no la dirección.")
                     with gr.Row():
-                        tr = gr.Textbox(value="SAB.MC, BBVA.MC, IBE.MC", label="Watchlist (coma)", scale=3)
+                        tr = gr.Textbox(value=WL, label="Watchlist (coma)", scale=3)
                         pr = gr.Dropdown(["1y", "3y", "5y"], value="3y", label="Histórico")
                         cr = gr.Dropdown([0.95, 0.99], value=0.95, label="Confianza VaR")
                         br = gr.Button("Medir riesgo", variant="primary")
@@ -1615,11 +1738,46 @@ def build():
                     gr.Markdown("**Vigilancia de watchlist**: RSI extremo, pico de volatilidad, "
                                 "movimiento brusco, cruce de SMA50, proximidad a máx/mín 52s.")
                     with gr.Row():
-                        tal = gr.Textbox(value="SAB.MC, BBVA.MC, AAPL, MSFT, NVDA", label="Watchlist (coma)", scale=4)
+                        tal = gr.Textbox(value=WL, label="Watchlist (coma)", scale=4)
                         bal = gr.Button("Escanear", variant="primary")
                     mdal = gr.Markdown()
                     tblal = gr.Dataframe(wrap=True)
                     bal.click(tab_alertas, [tal], [tblal, mdal])
+                with gr.Tab("🏦 Cartera LP"):
+                    gr.Markdown("**Cartera de LARGO PLAZO guiada**: reparte tu capital con HRP "
+                                "(asignación robusta), te dice cuántas acciones comprar, y cada mes "
+                                "'Revisar rebalanceo' te da las órdenes de ajuste. Dividendos incluidos.")
+                    with gr.Row():
+                        tlp = gr.Textbox(value="AAPL, MSFT, JPM, KO, GLD, TLT",
+                                         label="Activos (coma, ≥3; mezcla bolsa/oro/bonos)", scale=3)
+                        clp = gr.Number(value=10000, label="Capital €")
+                    with gr.Row():
+                        blp1 = gr.Button("1) Crear cartera (hoy)", variant="primary")
+                        blp2 = gr.Button("2) Revisar rebalanceo (mensual)", variant="secondary")
+                        blp3 = gr.Button("3) He rebalanceado (actualizar)", variant="secondary")
+                    mdlp = gr.Markdown()
+                    tbllp = gr.Dataframe(wrap=True)
+                    blp1.click(tab_cartera_lp_crear, [tlp, clp], [tbllp, mdlp])
+                    blp2.click(tab_cartera_lp_revisar, [], [tbllp, mdlp])
+                    blp3.click(tab_cartera_lp_aplicar, [], [tbllp, mdlp])
+                    gr.Markdown("---\n**¿Aportar cada mes (DCA) o entrar de golpe?** Compara con datos reales.")
+                    with gr.Row():
+                        tdca = gr.Number(value=12000, label="Dinero total €")
+                        adca = gr.Dropdown([3, 5, 8, 10], value=5, label="Años")
+                        bdca = gr.Button("Comparar DCA vs entrada única", variant="secondary")
+                    mddca = gr.Markdown()
+                    figdca = gr.Plot()
+                    tbldca = gr.Dataframe(wrap=True)
+                    bdca.click(tab_dca, [tlp, tdca, adca], [figdca, tbldca, mddca])
+                with gr.Tab("🗞️ Informe semanal"):
+                    gr.Markdown("**Tu resumen en un clic**: señales de tu watchlist guardada + "
+                                "riesgo de la cesta + titulares recientes → un Word en la raíz "
+                                "del proyecto. Tarda ~10-20 s. También por doble clic: Informe_Semanal.bat.")
+                    binf = gr.Button("🗞️ Generar informe ahora", variant="primary")
+                    mdinf = gr.Markdown()
+                    binf.click(tab_informe_semanal, [], [mdinf])
+        # guardar watchlist -> actualiza el fichero y los 11 campos que la usan
+        wbtn.click(_wl_save, [wtxt], [wmd, t3, t4, tse, trk, tsy, tvb, tsb, tr, tal, tis, tf])
     return app
 
 

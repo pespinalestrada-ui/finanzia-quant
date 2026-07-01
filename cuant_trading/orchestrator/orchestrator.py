@@ -56,6 +56,14 @@ def ejecutar(plan_df, registrar=True):
         return pd.DataFrame(), "Plan vacío: nada que ejecutar."
     if not AP.configurada():
         return pd.DataFrame(), "Faltan claves de Alpaca (ALPACA_KEY/ALPACA_SECRET) en el .env."
+    # freno de pérdida diaria: si hoy la cuenta pierde más del límite, no se opera
+    try:
+        fr = AP.freno_diario()
+        if fr["bloqueado"]:
+            return pd.DataFrame(), (f"🛑 FRENO DIARIO ACTIVO: la cuenta paper pierde {fr['pct']}% hoy "
+                                    f"(límite −{fr['limite_pct']}%). No se envían órdenes hasta mañana.")
+    except Exception:
+        pass
 
     res = []
     for _, r in plan_df.iterrows():

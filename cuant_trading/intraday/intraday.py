@@ -167,6 +167,109 @@ def snapshot_alpaca(ticker, or_min=30):
     return fig, tabla, md
 
 
+def _sesion_actual(ticker, or_min=30):
+    """Barras de la sesión más reciente con indicadores. Intenta Alpaca EN VIVO
+    (EEUU) y cae a yfinance (~15 min retraso). Devuelve (ind, px, fuente)."""
+    tk = ticker.strip().upper()
+    ind = None; px = None; fuente = "yfinance (~15 min retraso)"
+    if "." not in tk and "-" not in tk:
+        try:
+            import sys as _sys
+            from pathlib import Path as _P
+            _sys.path.insert(0, str(_P(__file__).resolve().parents[1] / "alpaca_paper"))
+            import alpaca_paper as AP
+            if AP.configurada():
+                df = AP.barras_intradia(tk, "5Min", horas=30)
+                if df is not None and len(df) >= 8:
+                    df = df.copy(); df["sesion"] = df.index.date
+                    df = df[df["sesion"] == df["sesion"].iloc[-1]]
+                    if len(df) >= 3:
+                        ind = indicadores_intradia(df, or_min, "5m")
+                        try:
+                            px = float(AP.cotizacion(tk)["precio"]) or float(ind["Close"].iloc[-1])
+                        except Exception:
+                            px = float(ind["Close"].iloc[-1])
+                        fuente = "Alpaca/IEX (EN VIVO)"
+        except Exception:
+            ind = None
+    if ind is None:
+        df = descargar(tk, "5m")
+        ind_all = indicadores_intradia(df, or_min, "5m")
+        ult = ind_all["sesion"].iloc[-1]
+        ind = ind_all[ind_all["sesion"] == ult]
+        px = float(ind["Close"].iloc[-1])
+    return ind, px, fuente
+
+
+def semaforo(ticker, or_min=30):
+    """Semáforo del DÍA: 🟢 opera largo / 🔴 opera corto / 🟡 no operes hoy,
+    con razones en lenguaje claro. Devuelve (fig, tabla, md)."""
+    ind, px, fuente = _sesion_actual(ticker, or_min)
+    last = ind.iloc[-1]
+    vwap = float(last["VWAP"]); orh = float(last["OR_high"]); orl = float(last["OR_low"])
+    rsi = float(last["RSI"]); atr = float(last["ATR"]) if not np.isnan(last["ATR"]) else px * 0.005
+    c = ind["Close"]
+    ema9 = c.ewm(span=9, adjust=False).mean().iloc[-1]
+
+    razones, votos = [], 0
+    # 1. VWAP: el precio de referencia del día
+    if px > vwap:
+        votos += 1; razones.append("✅ Precio por ENCIMA del VWAP (los compradores mandan hoy)")
+    else:
+        votos -= 1; razones.append("❌ Precio por DEBAJO del VWAP (los vendedores mandan hoy)")
+    # 2. rango de apertura
+    if px > orh:
+        votos += 1; razones.append("✅ Rotura ALCISTA del rango de apertura")
+    elif px < orl:
+        votos -= 1; razones.append("❌ Rotura BAJISTA del rango de apertura")
+    else:
+        razones.append("➖ Sigue DENTRO del rango de apertura (sin dirección aún)")
+    # 3. micro-tendencia (EMA9 de 5m)
+    if px > ema9:
+        votos += 1; razones.append("✅ Por encima de la media rápida de la sesión (EMA9)")
+    else:
+        votos -= 1; razones.append("❌ Por debajo de la media rápida de la sesión (EMA9)")
+    # 4. ¿hay rango suficiente para que compense operar? (vs coste típico)
+    rango_dia = float(ind["High"].max() - ind["Low"].min())
+    if rango_dia < 4 * (px * 0.0006):                 # rango < ~4x coste ida+vuelta
+        razones.append("⚠️ Día MUY estrecho: el movimiento apenas cubre los costes")
+        estrecho = True
+    else:
+        estrecho = False
+    # 5. RSI extremo = tarde para perseguir
+    tarde = ""
+    if rsi > 75 and votos > 0:
+        tarde = " (RSI muy alto: tarde para perseguir, espera un retroceso)"
+    if rsi < 25 and votos < 0:
+        tarde = " (RSI muy bajo: tarde para perseguir, espera un rebote)"
+
+    if estrecho or votos == 0 or abs(votos) == 1:
+        verd, emoji = "NO OPERES HOY (o espera)", "🟡"
+        consejo = "Señales mezcladas o día estrecho: lo rentable hoy es no operar."
+    elif votos >= 2:
+        verd, emoji = "SESGO LARGO", "🟢"
+        consejo = f"Si operas, mejor al alza. Stop de referencia: {px - 1.5*atr:.2f} (1.5×ATR)." + tarde
+    else:
+        verd, emoji = "SESGO CORTO", "🔴"
+        consejo = f"Si operas, mejor a la baja. Stop de referencia: {px + 1.5*atr:.2f} (1.5×ATR)." + tarde
+
+    tabla = pd.DataFrame([
+        {"Métrica": "Precio", "Valor": f"{px:.3f}"},
+        {"Métrica": "VWAP", "Valor": f"{vwap:.3f}"},
+        {"Métrica": "Rango apertura", "Valor": f"{orl:.3f} – {orh:.3f}"},
+        {"Métrica": "RSI intradía", "Valor": f"{rsi:.0f}"},
+        {"Métrica": "Rango del día", "Valor": f"{rango_dia:.3f}"},
+        {"Métrica": "Fuente de datos", "Valor": fuente},
+    ])
+    md = (f"# {emoji} {verd}\n\n**{ticker.upper()}** · hoy · datos: {fuente}\n\n"
+          + "\n".join("- " + r for r in razones)
+          + f"\n\n**Consejo:** {consejo}\n\n"
+          "> Semáforo del día (VWAP + apertura + micro-tendencia). El intradía es la liga "
+          "difícil: la mayoría de días la respuesta correcta es 🟡. No es recomendación.")
+    fig = _plot_snapshot(ind, ticker.upper() + " (semáforo)", "5m", ind["sesion"].iloc[-1])
+    return fig, tabla, md
+
+
 def backtest_orb(df, or_min=30, interval="5m", coste_bps=6.0):
     """
     Opening Range Breakout con MODELO DE COSTES. Una operación por sesión: entra al
@@ -202,6 +305,55 @@ def backtest_orb(df, or_min=30, interval="5m", coste_bps=6.0):
     return pd.DataFrame(trades)
 
 
+def backtest_estrategia(df, estrategia="orb", or_min=30, interval="5m", coste_bps=6.0):
+    """Backtest intradía CON COSTES de 3 estrategias (1 trade/sesión, salida al cierre):
+      - orb : rotura del rango de apertura (la de siempre).
+      - vwap: retorno al VWAP — tras estar claramente por debajo/encima, el cruce
+              de vuelta del VWAP marca la entrada (reversión a la media del día).
+      - ema9: pullback a la EMA9 — en micro-tendencia (EMA9>EMA21), tocar la EMA9
+              y cerrar por encima marca la entrada (seguir tendencia tras descanso).
+    Devuelve DataFrame de trades (bruto y neto)."""
+    if estrategia == "orb":
+        return backtest_orb(df, or_min, interval, coste_bps)
+    bar = _MIN.get(interval, 5)
+    or_bars = max(1, or_min // bar)
+    coste = coste_bps / 10000.0
+    trades = []
+    for fecha, g in df.groupby("sesion"):
+        if len(g) < or_bars + 6:
+            continue
+        c = g["Close"].astype(float)
+        tp = (g["High"] + g["Low"] + g["Close"]) / 3.0
+        vwap = (tp * g["Volume"]).cumsum() / g["Volume"].cumsum().replace(0, np.nan)
+        ema9 = c.ewm(span=9, adjust=False).mean()
+        ema21 = c.ewm(span=21, adjust=False).mean()
+        pos, entrada = None, None
+        for i in range(or_bars + 1, len(g)):
+            px = float(c.iloc[i]); pxa = float(c.iloc[i - 1])
+            vw = float(vwap.iloc[i]); vwa = float(vwap.iloc[i - 1])
+            if estrategia == "vwap":
+                # cruce de VUELTA al VWAP tras desviación de al menos 0.15%
+                if pxa < vwa * 0.9985 and px > vw:
+                    pos, entrada = "LONG", px; break
+                if pxa > vwa * 1.0015 and px < vw:
+                    pos, entrada = "SHORT", px; break
+            else:  # ema9 pullback
+                e9, e21 = float(ema9.iloc[i]), float(ema21.iloc[i])
+                lo_i, hi_i = float(g["Low"].iloc[i]), float(g["High"].iloc[i])
+                if e9 > e21 and lo_i <= e9 and px > e9:
+                    pos, entrada = "LONG", px; break
+                if e9 < e21 and hi_i >= e9 and px < e9:
+                    pos, entrada = "SHORT", px; break
+        if pos is None:
+            continue
+        salida = float(c.iloc[-1])
+        bruto = (salida / entrada - 1.0) * (1 if pos == "LONG" else -1)
+        trades.append({"sesion": str(fecha), "dir": pos, "entrada": round(entrada, 3),
+                       "salida": round(salida, 3), "bruto_%": round(bruto * 100, 3),
+                       "neto_%": round((bruto - coste) * 100, 3)})
+    return pd.DataFrame(trades)
+
+
 def metricas_backtest(bt, coste_bps):
     if bt.empty:
         return {"n": 0, "mensaje": "Sin operaciones (no hubo roturas o histórico corto)."}
@@ -225,8 +377,8 @@ def metricas_backtest(bt, coste_bps):
     }
 
 
-def escanear(tickers, interval="15m", or_min=30, coste_bps=6.0):
-    """Backtest ORB con costes sobre varios tickers → tabla rankeada por expectancy NETA."""
+def escanear(tickers, interval="15m", or_min=30, coste_bps=6.0, estrategia="orb"):
+    """Backtest con costes sobre varios tickers → tabla rankeada por expectancy NETA."""
     filas = []
     for tk in tickers:
         tk = tk.strip().upper()
@@ -234,7 +386,7 @@ def escanear(tickers, interval="15m", or_min=30, coste_bps=6.0):
             continue
         try:
             df = descargar(tk, interval)
-            bt = backtest_orb(df, or_min, interval, coste_bps)
+            bt = backtest_estrategia(df, estrategia, or_min, interval, coste_bps)
             mt = metricas_backtest(bt, coste_bps)
             if mt["n"] == 0:
                 continue

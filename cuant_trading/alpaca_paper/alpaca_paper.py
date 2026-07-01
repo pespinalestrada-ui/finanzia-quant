@@ -107,6 +107,23 @@ def posiciones():
     return out
 
 
+def freno_diario(limite_pct=None):
+    """Freno de pérdida diaria: si la cuenta paper pierde más del límite HOY,
+    se bloquean nuevas órdenes. Límite en % (env FRENO_DIARIO_PCT, def. 2.0).
+    Devuelve dict(bloqueado, pnl_dia, pct, limite_pct)."""
+    _cargar_env()
+    if limite_pct is None:
+        try:
+            limite_pct = float(os.getenv("FRENO_DIARIO_PCT", "2.0"))
+        except Exception:
+            limite_pct = 2.0
+    c = cuenta()
+    base = c["equity"] - c["pnl_dia"]                    # equity de ayer
+    pct = (c["pnl_dia"] / base * 100.0) if base > 0 else 0.0
+    return {"bloqueado": pct <= -abs(limite_pct), "pnl_dia": c["pnl_dia"],
+            "pct": round(pct, 2), "limite_pct": abs(limite_pct)}
+
+
 def barras_intradia(symbol, timeframe="5Min", horas=30):
     """Barras intradía REAL-TIME (feed IEX gratis). Devuelve DataFrame OHLCV
     con índice datetime en hora de Nueva York. Solo tickers de EEUU."""

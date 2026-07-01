@@ -347,7 +347,7 @@ def _mape_de_tabla(tab):
     return 10.0
 
 
-def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=False):
+def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10000, registrar=True, cripto=False):
     """
     Agrega forecast (consenso multi-modelo opcional) + batería técnica completa
     + volumen + sentimiento en un veredicto COMPRAR / MANTENER / VENDER.
@@ -519,28 +519,63 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
             notas_modelos += (f"\n\n> ⚠️ Mercado lateral (Hurst={hurst_v:.2f}, ADX={adx_v:.0f}<20): "
                               f"señal {verd} MENOS fiable — usa tamaño reducido.")
 
-        # --- Auto-Logging -----------------------------------------------------
-        nota_log = ""
+        # --- Plan sugerido (entrada/stop/nº acciones) + registro opcional ------
+        capital = float(capital) if capital else 10000.0
+        plan_md, nota_log = "", ""
         if verd in ["COMPRAR", "VENDER"]:
             try:
-                # Usa posición base 10k, objetivo 15% volatilidad
                 vol_anual = PS.garch_volatility(ticker)
-                atr, px_atr = PS.atr_actual(ticker)
+                atr, _px_atr = PS.atr_actual(ticker)
+                if not (atr and atr > 0):
+                    atr = px * 0.02
                 stop = px - 2 * atr if verd == "COMPRAR" else px + 2 * atr
                 r_accion = abs(px - stop)
-                
                 if not np.isnan(vol_anual) and vol_anual > 0:
-                    weight = 0.15 / vol_anual
-                    coste_obj = 10000 * weight
-                    shares = max(1, int(coste_obj // px))
+                    shares = max(1, int((capital * min(0.35, 0.15 / vol_anual)) // px))
                 else:
-                    riesgo_eur = 10000 * 0.01
-                    shares = max(1, int(riesgo_eur // r_accion))
-                
-                nid = JR.abrir(ticker, px, stop, shares, f"Auto-Veredicto: {verd} (Score {total:+.2f})", "SHORT" if verd == "VENDER" else "LONG", factor_score_val)
-                nota_log = f"\n\n✅ **Auto-Logging:** Operación #{nid} registrada automáticamente en el Diario (simulada) para medir expectancy."
+                    shares = max(1, int((capital * 0.01) // r_accion))
+                riesgo_eur = r_accion * shares
+                coste = shares * px
+                accion_txt = "Comprar" if verd == "COMPRAR" else "Vender (en corto)"
+                plan_md = (f"\n\n### 📋 Plan sugerido (capital {capital:,.0f} €)\n"
+                           f"- **{accion_txt} {shares} acciones** a ~{px:.2f} → coste {coste:,.0f} € "
+                           f"({coste/capital*100:.0f}% del capital)\n"
+                           f"- **Stop en {stop:.2f}**: si llega ahí, sales. Perderías ~{riesgo_eur:,.0f} € "
+                           f"({riesgo_eur/capital*100:.1f}% del capital)\n"
+                           f"- Practícalo primero: mándalo a paper en 🦙 Alpaca o apúntalo en 📒 Diario.")
+                if registrar:
+                    nid = JR.abrir(ticker, px, stop, shares, f"Auto-Veredicto: {verd} (Score {total:+.2f})",
+                                   "SHORT" if verd == "VENDER" else "LONG", factor_score_val)
+                    nota_log = f"\n\n✅ Apuntado en el 📒 Diario como operación **#{nid}** (simulada, para medir tu acierto)."
             except Exception as ej:
-                nota_log = f"\n\n⚠️ Error al auto-registrar en Diario: {ej}"
+                nota_log = f"\n\n⚠️ No se pudo calcular el plan/registrar: {ej}"
+        else:
+            plan_md = ("\n\n### 📋 Qué hacer\n- **Nada.** La señal no es clara: espera, o busca otra "
+                       "empresa en 📊 Factores. No operar también es una decisión (y a menudo la mejor).")
+
+        # --- explicación en cristiano (a favor / en contra) ---------------------
+        _AMIGO = [("Forecast", "Proyección a 90 días"), ("Tendencia", "Tendencia de fondo"),
+                  ("ADX", "Fuerza de la tendencia"), ("Osciladores", "Termómetros de corto plazo"),
+                  ("MACD", "Indicador MACD"), ("Momentum", "Empuje de los últimos 3 meses"),
+                  ("OBV", "Dinero entrando/saliendo"), ("Señales", "Radar técnico"),
+                  ("Factores", "Salud fundamental"), ("Sentimiento", "Tono de las noticias"),
+                  ("Fear & Greed", "Miedo/codicia cripto")]
+        def _amigo(n):
+            for pref, lab in _AMIGO:
+                if n.startswith(pref) or pref in n:
+                    return lab
+            return n
+        contrib = sorted(((n, l, s * w / wsum) for n, l, s, w in pilares), key=lambda x: -x[2])
+        favor = [f"- ✅ **{_amigo(n)}** — {l}" for n, l, a in contrib if a > 0.008][:4]
+        contra = [f"- ❌ **{_amigo(n)}** — {l}" for n, l, a in reversed(contrib) if a < -0.008][:4]
+        razones = ""
+        if favor:
+            razones += "\n\n**A favor:**\n" + "\n".join(favor)
+        if contra:
+            razones += "\n\n**En contra:**\n" + "\n".join(contra)
+
+        fuerza = ("FUERTE" if abs(total) >= 0.5 else "moderada" if abs(total) >= 0.35
+                  else "débil" if abs(total) >= 0.15 else "sin dirección clara")
 
         tabla = pd.DataFrame(
             [{"Pilar": n, "Lectura": l, "Score": round(s, 2),
@@ -548,30 +583,24 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, cripto=Fal
              for n, l, s, w in pilares]
         )
 
-        extras = []
-        if not con_modelos:
-            extras.append("consenso multi-modelo OFF")
-        if not con_sentimiento:
-            extras.append("sentimiento OFF")
-        md = (f"# {emoji} {verd}" + ("  🪙 *cripto (forecast diario 7d)*" if cripto else "") + "\n\n"
-              f"**{ticker}** · precio {px:.3f} · score total **{total:+.3f}** "
-              f"(umbral: ≥+0.35 comprar · ≤−0.35 vender)\n\n"
-              f"{len(pilares)} pilares"
-              + (f" · *({', '.join(extras)})*" if extras else "")
+        md = (f"# {emoji} {verd}" + ("  🪙 *cripto*" if cripto else "") + "\n\n"
+              f"**{ticker}** · precio {px:.3f} · señal {fuerza} (score {total:+.2f}, "
+              f"se compra desde +0.35 y se vende desde −0.35)"
+              + razones
+              + plan_md
               + notas_modelos
               + nota_log
-              + "\n\n> ⚠️ Estimación estadística automática (forecast + batería técnica + volumen"
-              + (" + sentimiento" if con_sentimiento else "")
-              + "). **NO es recomendación de inversión.** Resumen, no orden.")
+              + "\n\n> ⚠️ Resumen estadístico automático, **no un consejo garantizado**. "
+              + "El detalle técnico completo está en la tabla de abajo.")
         return fig, tabla, md
     except Exception as e:
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
 
 
-def tab_veredicto_cripto(ticker, period, con_sentimiento, con_modelos=False):
+def tab_veredicto_cripto(ticker, period, con_sentimiento, con_modelos=False, capital=10000, registrar=True):
     """Veredicto para criptomonedas: mismo agregador con forecast diario 7d,
     momentum en días naturales y pilar de Fear & Greed cripto."""
-    return tab_veredicto(ticker, period, con_sentimiento, con_modelos, cripto=True)
+    return tab_veredicto(ticker, period, con_sentimiento, con_modelos, capital, registrar, cripto=True)
 
 
 # ---- 11. Diario de operaciones (paper trading) ------------------------------
@@ -1130,14 +1159,16 @@ def build():
                     with gr.Row():
                         tv = gr.Textbox(value="AAPL", label="Ticker", scale=3)
                         pv = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
+                        cv = gr.Number(value=10000, label="Tu capital €")
                         bv = gr.Button("Analizar TODO", variant="primary")
                     with gr.Row():
-                        mv = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM + pesados si están, +tiempo)")
-                        sv = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
+                        rv = gr.Checkbox(value=True, label="Si sale COMPRAR/VENDER, apuntarlo en el 📒 Diario (simulado)")
+                        sv = gr.Checkbox(value=False, label="Incluir noticias (sentimiento; 1ª vez +1 min)")
+                        mv = gr.Checkbox(value=False, label="Consenso multi-modelo (informativo, +2 min)")
                     mdv = gr.Markdown()
-                    tbv = gr.Dataframe(label="Desglose por pilar", wrap=True)
+                    tbv = gr.Dataframe(label="Detalle técnico (opcional)", wrap=True)
                     plv = gr.Plot(label="Forecast 30/90/120d")
-                    bv.click(tab_veredicto, [tv, pv, sv, mv], [plv, tbv, mdv])
+                    bv.click(tab_veredicto, [tv, pv, sv, mv, cv, rv], [plv, tbv, mdv])
                 with gr.Tab("🪙 Veredicto Cripto"):
                     gr.Markdown("**Veredicto para criptomonedas** (BTC-USD, ETH-EUR, SOL-USD…). "
                                 "Mismo agregador pero con **forecast diario 7d**, momentum en días "
@@ -1146,14 +1177,16 @@ def build():
                     with gr.Row():
                         tvc = gr.Textbox(value="BTC-USD", label="Ticker cripto (BASE-FIAT)", scale=3)
                         pvc = gr.Dropdown(["1y", "2y", "3y", "5y"], value="3y", label="Histórico")
+                        cvc = gr.Number(value=10000, label="Tu capital €")
                         bvc = gr.Button("Analizar cripto", variant="primary")
                     with gr.Row():
-                        mvc = gr.Checkbox(value=False, label="Consenso multi-modelo (LSTM…, +tiempo)")
-                        svc = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
+                        rvc = gr.Checkbox(value=True, label="Si sale COMPRAR/VENDER, apuntarlo en el 📒 Diario (simulado)")
+                        svc = gr.Checkbox(value=False, label="Incluir noticias (sentimiento; 1ª vez +1 min)")
+                        mvc = gr.Checkbox(value=False, label="Consenso multi-modelo (informativo, +2 min)")
                     mdvc = gr.Markdown()
-                    tbvc = gr.Dataframe(label="Desglose por pilar", wrap=True)
+                    tbvc = gr.Dataframe(label="Detalle técnico (opcional)", wrap=True)
                     plvc = gr.Plot(label="Forecast cripto 30/90/120d")
-                    bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc], [plvc, tbvc, mdvc])
+                    bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc, cvc, rvc], [plvc, tbvc, mdvc])
                 with gr.Tab("⏱️ Intradía"):
                     gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
                                 "**backtest Opening Range Breakout con COSTES** (comisión+spread+slippage). "

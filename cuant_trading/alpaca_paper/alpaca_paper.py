@@ -107,6 +107,33 @@ def posiciones():
     return out
 
 
+def barras_intradia(symbol, timeframe="5Min", horas=30):
+    """Barras intradía REAL-TIME (feed IEX gratis). Devuelve DataFrame OHLCV
+    con índice datetime en hora de Nueva York. Solo tickers de EEUU."""
+    import pandas as pd
+    from datetime import datetime, timedelta, timezone
+    sym = symbol.strip().upper()
+    start = (datetime.now(timezone.utc) - timedelta(hours=horas)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    filas, token = [], None
+    for _ in range(5):                                   # paginación
+        params = {"timeframe": timeframe, "start": start, "feed": "iex", "limit": 10000}
+        if token:
+            params["page_token"] = token
+        r = requests.get(f"{DATA}/v2/stocks/{sym}/bars", headers=_headers(), params=params, timeout=15)
+        r.raise_for_status()
+        d = r.json()
+        filas.extend(d.get("bars") or [])
+        token = d.get("next_page_token")
+        if not token:
+            break
+    if not filas:
+        return None
+    df = pd.DataFrame(filas).rename(columns={"o": "Open", "h": "High", "l": "Low",
+                                             "c": "Close", "v": "Volume"})
+    df.index = pd.to_datetime(df["t"]).dt.tz_convert("America/New_York")
+    return df[["Open", "High", "Low", "Close", "Volume"]].astype(float)
+
+
 def cotizacion(symbol):
     """Último trade real-time (feed IEX gratis)."""
     h = _headers()

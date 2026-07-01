@@ -116,6 +116,57 @@ def snapshot(ticker, interval="5m", or_min=30):
     return fig, tabla, md
 
 
+def snapshot_alpaca(ticker, or_min=30):
+    """Snapshot intradía con datos EN VIVO de Alpaca (IEX). Solo tickers EEUU.
+    Devuelve (fig, tabla, md). Lanza ValueError con mensaje claro si no procede."""
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[1] / "alpaca_paper"))
+    import alpaca_paper as AP
+    if not AP.configurada():
+        raise ValueError("Faltan claves de Alpaca en el .env (ALPACA_KEY/ALPACA_SECRET).")
+    tk = ticker.strip().upper()
+    if "." in tk or "-" in tk:
+        raise ValueError(f"Alpaca solo cubre EEUU ({tk} no). Usa el Snapshot normal (yfinance).")
+    df = AP.barras_intradia(tk, "5Min", horas=30)
+    if df is None or len(df) < 8:
+        raise ValueError(f"Sin barras intradía de {tk} ahora mismo (¿mercado cerrado?). Usa el Snapshot normal.")
+    df = df.copy()
+    df["sesion"] = df.index.date
+    ult = df["sesion"].iloc[-1]
+    df = df[df["sesion"] == ult]                       # solo la sesión más reciente
+    if len(df) < 3:
+        raise ValueError("Sesión recién abierta: aún hay pocas barras. Reintenta en unos minutos.")
+    ind = indicadores_intradia(df, or_min, "5m")
+    last = ind.iloc[-1]
+    # precio del ÚLTIMO trade (aún más fresco que la última barra)
+    try:
+        px = float(AP.cotizacion(tk)["precio"]) or float(last["Close"])
+    except Exception:
+        px = float(last["Close"])
+    vwap = float(last["VWAP"]); orh = float(last["OR_high"]); orl = float(last["OR_low"])
+    rsi = float(last["RSI"])
+    pos_vwap = "ENCIMA" if px > vwap else "DEBAJO"
+    zona = ("ROTURA ALCISTA del rango de apertura" if px > orh else
+            "ROTURA BAJISTA del rango de apertura" if px < orl else
+            "DENTRO del rango de apertura")
+    sesgo = ("alcista" if (px > vwap and px > orh) else
+             "bajista" if (px < vwap and px < orl) else "mixto/sin sesgo claro")
+    tabla = pd.DataFrame([
+        {"Métrica": "Precio (último trade, EN VIVO)", "Valor": f"{px:.3f}"},
+        {"Métrica": "VWAP", "Valor": f"{vwap:.3f}  ({pos_vwap})"},
+        {"Métrica": "Rango apertura", "Valor": f"{orl:.3f} – {orh:.3f}"},
+        {"Métrica": "RSI intradía", "Valor": f"{rsi:.0f}"},
+        {"Métrica": "Rango de hoy", "Valor": f"{float(ind['Low'].min()):.3f} – {float(ind['High'].max()):.3f}"},
+        {"Métrica": "Barras 5m de la sesión", "Valor": f"{len(ind)}"},
+    ])
+    md = (f"### 📡 {tk} · intradía EN VIVO (Alpaca/IEX) · sesión {ult}\n"
+          f"**{zona}** · precio **{pos_vwap}** del VWAP · sesgo intradía: **{sesgo}**.\n\n"
+          f"> Datos en tiempo real del feed IEX (gratis). Sin el retraso de ~15 min de yfinance.")
+    fig = _plot_snapshot(ind, tk + " (EN VIVO)", "5m", ult)
+    return fig, tabla, md
+
+
 def backtest_orb(df, or_min=30, interval="5m", coste_bps=6.0):
     """
     Opening Range Breakout con MODELO DE COSTES. Una operación por sesión: entra al

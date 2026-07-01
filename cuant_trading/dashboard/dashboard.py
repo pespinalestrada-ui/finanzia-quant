@@ -769,6 +769,16 @@ def tab_intraday_snapshot(ticker, interval, or_min):
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
 
 
+def tab_intraday_live(ticker, or_min):
+    """Snapshot intradía EN VIVO con Alpaca (IEX). Fallback con mensaje claro."""
+    try:
+        import intraday as IN
+        fig, tabla, md = IN.snapshot_alpaca(ticker.strip().upper(), int(or_min))
+        return fig, tabla, md
+    except Exception as e:
+        return _err_fig(f"{e}"), pd.DataFrame(), f"**No disponible:** {e}"
+
+
 def tab_intraday_backtest(ticker, interval, or_min, coste_bps):
     try:
         import intraday as IN
@@ -1198,11 +1208,13 @@ def build():
                         ori = gr.Dropdown([15, 30, 60], value=30, label="Rango apertura (min)")
                         ci = gr.Number(value=6.0, label="Coste ida+vuelta (bps)")
                     with gr.Row():
-                        bi1 = gr.Button("📷 Snapshot de hoy", variant="secondary")
-                        bi2 = gr.Button("🧪 Backtest ORB con costes", variant="primary")
+                        bi0 = gr.Button("📡 Snapshot EN VIVO (Alpaca, EEUU)", variant="primary")
+                        bi1 = gr.Button("📷 Snapshot yfinance (~15 min retraso)", variant="secondary")
+                        bi2 = gr.Button("🧪 Backtest ORB con costes", variant="secondary")
                     mdi = gr.Markdown()
                     figi = gr.Plot()
                     tbli = gr.Dataframe(wrap=True)
+                    bi0.click(tab_intraday_live, [ti, ori], [figi, tbli, mdi])
                     bi1.click(tab_intraday_snapshot, [ti, ii, ori], [figi, tbli, mdi])
                     bi2.click(tab_intraday_backtest, [ti, ii, ori, ci], [tbli, mdi])
                     gr.Markdown("---\n**Escaneo multi-ticker**: ¿dónde (si en algún sitio) sobrevive el edge al coste?")

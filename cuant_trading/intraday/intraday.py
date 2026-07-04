@@ -264,8 +264,9 @@ def semaforo(ticker, or_min=30):
     md = (f"# {emoji} {verd}\n\n**{ticker.upper()}** · hoy · datos: {fuente}\n\n"
           + "\n".join("- " + r for r in razones)
           + f"\n\n**Consejo:** {consejo}\n\n"
-          "> Semáforo del día (VWAP + apertura + micro-tendencia). El intradía es la liga "
-          "difícil: la mayoría de días la respuesta correcta es 🟡. No es recomendación.")
+          "> Semáforo del día (VWAP + apertura + micro-tendencia). MEDIDO en backtest: la "
+          "dirección acierta ~50% tras costes (azar) — su valor real es el 🟡, que te evita "
+          "operar en días malos. La mayoría de días la respuesta correcta es 🟡. No es recomendación.")
     fig = _plot_snapshot(ind, ticker.upper() + " (semáforo)", "5m", ind["sesion"].iloc[-1])
     return fig, tabla, md
 
@@ -303,6 +304,43 @@ def backtest_orb(df, or_min=30, interval="5m", coste_bps=6.0):
                        "salida": round(salida, 3), "bruto_%": round(bruto * 100, 3),
                        "neto_%": round(neto * 100, 3)})
     return pd.DataFrame(trades)
+
+
+def backtest_semaforo(df, or_min=30, interval="5m", coste_bps=6.0, espera_barras=12):
+    """¿El 🚦 semáforo acierta? Replica su regla (VWAP + rango apertura + EMA9,
+    señal si ≥2 votos) en cada sesión pasada, decidiendo 'espera_barras' tras la
+    apertura (def. 12×5m = 1h), y mide el retorno del resto del día CON costes.
+    Devuelve dict con n señales, acierto, expectancy neta y test binomial."""
+    from math import erf, sqrt
+    bar = _MIN.get(interval, 5)
+    or_bars = max(1, or_min // bar)
+    coste = coste_bps / 10000.0
+    res = []
+    for _, g in df.groupby("sesion"):
+        t = or_bars + espera_barras
+        if len(g) < t + 3:
+            continue
+        c = g["Close"].astype(float)
+        px = float(c.iloc[t])
+        orh = float(g["High"].iloc[:or_bars].max()); orl = float(g["Low"].iloc[:or_bars].min())
+        tp = (g["High"] + g["Low"] + g["Close"]) / 3.0
+        vwap = float(((tp * g["Volume"]).cumsum() / g["Volume"].cumsum().replace(0, np.nan)).iloc[t])
+        ema9 = float(c.iloc[:t + 1].ewm(span=9, adjust=False).mean().iloc[-1])
+        votos = (1 if px > vwap else -1) + (1 if px > orh else (-1 if px < orl else 0)) + (1 if px > ema9 else -1)
+        if abs(votos) < 2:
+            continue                                   # 🟡 no operar (no cuenta como trade)
+        lado = 1 if votos > 0 else -1
+        ret = (float(c.iloc[-1]) / px - 1.0) * lado - coste
+        res.append(ret)
+    if len(res) < 10:
+        return {"n": len(res), "mensaje": "Pocas señales para juzgar."}
+    r = np.array(res)
+    win = float((r > 0).mean())
+    z = (win - 0.5) / sqrt(0.25 / len(r))
+    pval = 1 - 0.5 * (1 + erf(z / sqrt(2)))
+    return {"n": len(r), "win": round(win * 100, 1), "exp_neta_pct": round(float(r.mean()) * 100, 3),
+            "total_pct": round(float(r.sum()) * 100, 2), "pval": round(float(pval), 3),
+            "edge": bool(r.mean() > 0 and pval < 0.05)}
 
 
 def backtest_estrategia(df, estrategia="orb", or_min=30, interval="5m", coste_bps=6.0):
@@ -352,6 +390,43 @@ def backtest_estrategia(df, estrategia="orb", or_min=30, interval="5m", coste_bp
                        "salida": round(salida, 3), "bruto_%": round(bruto * 100, 3),
                        "neto_%": round((bruto - coste) * 100, 3)})
     return pd.DataFrame(trades)
+
+
+def reality_check(tickers, interval="15m", or_min=30, coste_bps=6.0, n_boot=1000, seed=42):
+    """White's Reality Check (bootstrap): ¿la MEJOR combinación estrategia×ticker de
+    la familia bate a cero tras corregir el sesgo de selección? p<0.05 = edge real.
+    Compara el mejor retorno medio observado contra la distribución del 'mejor por
+    azar' (bootstrap con reemplazo de los retornos de cada combinación, centrados)."""
+    rng = np.random.default_rng(seed)
+    familia = {}
+    for tk in tickers:
+        try:
+            df = descargar(tk.strip().upper(), interval)
+        except Exception:
+            continue
+        for est in ("orb", "vwap", "ema9"):
+            bt = backtest_estrategia(df, est, or_min, interval, coste_bps)
+            if len(bt) >= 15:
+                familia[f"{tk.upper()}/{est}"] = bt["neto_%"].values / 100.0
+    if not familia:
+        return {"mensaje": "Familia vacía."}
+    medias = {k: float(v.mean()) for k, v in familia.items()}
+    mejor = max(medias, key=medias.get)
+    obs = medias[mejor]
+    # bootstrap del máximo bajo H0 (cada serie centrada a media 0)
+    maxes = np.empty(n_boot)
+    centradas = {k: v - v.mean() for k, v in familia.items()}
+    for b in range(n_boot):
+        mb = -np.inf
+        for v in centradas.values():
+            idx = rng.integers(0, len(v), len(v))
+            m = float(v[idx].mean())
+            if m > mb:
+                mb = m
+        maxes[b] = mb
+    pval = float((maxes >= obs).mean())
+    return {"n_combos": len(familia), "mejor": mejor, "exp_neta_pct": round(obs * 100, 3),
+            "pval_rc": round(pval, 3), "edge": bool(obs > 0 and pval < 0.05)}
 
 
 def metricas_backtest(bt, coste_bps):

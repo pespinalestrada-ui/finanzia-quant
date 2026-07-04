@@ -1256,33 +1256,69 @@ def build():
     import gradio as gr
     # head: bloquea el traductor automático de Chrome (rompe la reactividad de Gradio)
     _head = '<meta name="google" content="notranslate"><script>document.documentElement.lang="es";</script>'
-    # tema profesional; si la API de temas cambiara, cae al tema por defecto
+    # tema corporativo (un solo acento desaturado, tipografía con carácter);
+    # si la API de temas cambiara, cae al tema por defecto sin romperse
     try:
-        _theme = gr.themes.Soft(primary_hue="teal", secondary_hue="slate", neutral_hue="slate")
+        _theme = gr.themes.Soft(
+            primary_hue="teal", secondary_hue="slate", neutral_hue="slate",
+            font=[gr.themes.GoogleFont("Outfit"), "Segoe UI", "Arial", "sans-serif"],
+            font_mono=[gr.themes.GoogleFont("JetBrains Mono"), "Consolas", "monospace"],
+        )
     except Exception:
-        _theme = None
+        try:
+            _theme = gr.themes.Soft(primary_hue="teal", secondary_hue="slate", neutral_hue="slate")
+        except Exception:
+            _theme = None
     _css = """
+    :root { --acc: #0d9488; --acc-soft: rgba(13,148,136,.14); }
     .gradio-container {max-width: 1560px !important; margin: 0 auto !important;}
-    #banner {background: linear-gradient(90deg,#0f766e 0%,#134e4a 55%,#1e293b 100%);
-             border-radius: 14px; padding: 18px 26px; margin-bottom: 10px; color: #fff;}
-    #banner h1 {margin: 0; font-size: 1.65rem; letter-spacing: .3px; color: #fff;}
-    #banner p {margin: 4px 0 0 0; opacity: .85; font-size: .92rem; color: #e2e8f0;}
-    div[role='tablist'] {gap: 2px;}
+
+    /* cabecera corporativa: navy profundo, filete de acento, sin degradado chillón */
+    #banner {position: relative; background: #0b1220; border: 1px solid rgba(148,163,184,.14);
+             border-top: 3px solid var(--acc); border-radius: 12px;
+             padding: 20px 28px 16px; margin-bottom: 12px;
+             box-shadow: 0 10px 30px -18px rgba(2,6,23,.55);}
+    #banner .kicker {font-size: .72rem; letter-spacing: .22em; text-transform: uppercase;
+             color: #5eead4; font-weight: 600; margin: 0 0 2px 0;}
+    #banner h1 {margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;
+             line-height: 1.1; color: #f8fafc;}
+    #banner p {margin: 6px 0 0 0; font-size: .88rem; color: #94a3b8;}
+    #banner .disclaimer {position: absolute; right: 28px; top: 22px; text-align: right;
+             font-size: .72rem; color: #64748b; max-width: 300px; line-height: 1.35;}
+    @media (max-width: 900px){ #banner .disclaimer {display:none;} }
+
+    /* pestañas: subrayado de acento en la activa (sobrio, tipo terminal) */
+    div[role='tablist'] {gap: 4px; border-bottom: 1px solid rgba(148,163,184,.18);}
     div[role='tablist'] > button[role='tab'] {font-weight: 600; font-size: .95rem;
-             border-radius: 10px 10px 0 0; padding: 8px 14px;}
-    div[role='tablist'] > button[role='tab'].selected {background: rgba(15,118,110,.12);}
-    button.primary {border-radius: 10px !important; font-weight: 600;}
-    button.secondary {border-radius: 10px !important;}
-    .prose h1 {letter-spacing:.2px;}
-    table {font-size: .9rem;}
+             padding: 9px 14px; border-radius: 8px 8px 0 0;
+             border-bottom: 2px solid transparent; transition: background .18s, border-color .18s;}
+    div[role='tablist'] > button[role='tab']:hover {background: var(--acc-soft);}
+    div[role='tablist'] > button[role='tab'].selected {border-bottom: 2px solid var(--acc);
+             background: var(--acc-soft);}
+
+    /* botones: vivos al tacto */
+    button.primary, button.secondary {border-radius: 9px !important; font-weight: 600;
+             transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;}
+    button.primary:hover {transform: translateY(-1px);
+             box-shadow: 0 8px 20px -10px rgba(13,148,136,.55); filter: brightness(1.05);}
+    button.primary:active, button.secondary:active {transform: scale(.98);}
+    button:focus-visible {outline: 2px solid var(--acc); outline-offset: 2px;}
+
+    /* datos: números tabulares (columnas que alinean), filas con hover */
+    table {font-size: .88rem; font-variant-numeric: tabular-nums;}
+    tbody tr {transition: background .12s;}
+    tbody tr:hover {background: var(--acc-soft);}
+
+    .prose h1, .prose h2 {letter-spacing: -0.015em;}
     footer {display: none !important;}
     """
     with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head,
                    theme=_theme, css=_css) as app:
         gr.HTML("""<div id="banner">
-            <h1>📈 FinanzIA — Mesa cuantitativa</h1>
-            <p>Analiza · Valida · Practica en paper · Mide — Datos Yahoo/Alpaca ·
-            Herramienta de análisis y educación, no es recomendación de inversión.</p>
+            <p class="kicker">Mesa cuantitativa</p>
+            <h1>FinanzIA</h1>
+            <p>Analiza &middot; Valida &middot; Practica en paper &middot; Mide &nbsp;—&nbsp; Datos Yahoo Finance / Alpaca IEX</p>
+            <div class="disclaimer">Herramienta de análisis y educación.<br>No es recomendación de inversión.</div>
         </div>""")
         WL = _wl_load()
         with gr.Accordion("💾 Mi watchlist (compartida por todas las pestañas)", open=False):

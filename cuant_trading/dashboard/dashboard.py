@@ -1256,10 +1256,34 @@ def build():
     import gradio as gr
     # head: bloquea el traductor automático de Chrome (rompe la reactividad de Gradio)
     _head = '<meta name="google" content="notranslate"><script>document.documentElement.lang="es";</script>'
-    with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head) as app:
-        gr.Markdown("# FinanzIA — Mesa cuantitativa")
-        gr.Markdown("Suite de trading algorítmico. Datos Yahoo Finance (retardo ~15 min). "
-                    "Análisis y educación — **no es recomendación de inversión**.")
+    # tema profesional; si la API de temas cambiara, cae al tema por defecto
+    try:
+        _theme = gr.themes.Soft(primary_hue="teal", secondary_hue="slate", neutral_hue="slate")
+    except Exception:
+        _theme = None
+    _css = """
+    .gradio-container {max-width: 1560px !important; margin: 0 auto !important;}
+    #banner {background: linear-gradient(90deg,#0f766e 0%,#134e4a 55%,#1e293b 100%);
+             border-radius: 14px; padding: 18px 26px; margin-bottom: 10px; color: #fff;}
+    #banner h1 {margin: 0; font-size: 1.65rem; letter-spacing: .3px; color: #fff;}
+    #banner p {margin: 4px 0 0 0; opacity: .85; font-size: .92rem; color: #e2e8f0;}
+    div[role='tablist'] {gap: 2px;}
+    div[role='tablist'] > button[role='tab'] {font-weight: 600; font-size: .95rem;
+             border-radius: 10px 10px 0 0; padding: 8px 14px;}
+    div[role='tablist'] > button[role='tab'].selected {background: rgba(15,118,110,.12);}
+    button.primary {border-radius: 10px !important; font-weight: 600;}
+    button.secondary {border-radius: 10px !important;}
+    .prose h1 {letter-spacing:.2px;}
+    table {font-size: .9rem;}
+    footer {display: none !important;}
+    """
+    with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head,
+                   theme=_theme, css=_css) as app:
+        gr.HTML("""<div id="banner">
+            <h1>📈 FinanzIA — Mesa cuantitativa</h1>
+            <p>Analiza · Valida · Practica en paper · Mide — Datos Yahoo/Alpaca ·
+            Herramienta de análisis y educación, no es recomendación de inversión.</p>
+        </div>""")
         WL = _wl_load()
         with gr.Accordion("💾 Mi watchlist (compartida por todas las pestañas)", open=False):
             with gr.Row():

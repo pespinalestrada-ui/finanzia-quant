@@ -268,6 +268,19 @@ def semaforo(ticker, or_min=30):
           "dirección acierta ~50% tras costes (azar) — su valor real es el 🟡, que te evita "
           "operar en días malos. La mayoría de días la respuesta correcta es 🟡. No es recomendación.")
     fig = _plot_snapshot(ind, ticker.upper() + " (semáforo)", "5m", ind["sesion"].iloc[-1])
+    # log del semáforo (para validar con TUS datos si el 🟡 filtra bien)
+    try:
+        from datetime import datetime as _dt
+        from pathlib import Path as _Pl
+        logf = _Pl(__file__).resolve().parent / "semaforo_log.csv"
+        linea = f"{_dt.now().strftime('%Y-%m-%d %H:%M')},{ticker.upper()},{verd},{px:.4f},{fuente}\n"
+        if not logf.exists():
+            logf.write_text("fecha,ticker,veredicto,precio,fuente\n" + linea, encoding="utf-8")
+        else:
+            with open(logf, "a", encoding="utf-8") as fh:
+                fh.write(linea)
+    except Exception:
+        pass
     return fig, tabla, md
 
 
@@ -341,6 +354,41 @@ def backtest_semaforo(df, or_min=30, interval="5m", coste_bps=6.0, espera_barras
     return {"n": len(r), "win": round(win * 100, 1), "exp_neta_pct": round(float(r.mean()) * 100, 3),
             "total_pct": round(float(r.sum()) * 100, 2), "pval": round(float(pval), 3),
             "edge": bool(r.mean() > 0 and pval < 0.05)}
+
+
+def validar_amarillo(df, or_min=30, interval="5m", coste_bps=6.0, espera_barras=12):
+    """¿El 🟡 del semáforo filtra los días malos? Clasifica cada sesión pasada
+    (señal 🟢/🔴 vs 🟡) con la regla del semáforo y compara cómo habría ido operar
+    (ORB con costes) en cada grupo. Si en los días 🟡 se pierde más, el filtro sirve."""
+    bar = _MIN.get(interval, 5)
+    or_bars = max(1, or_min // bar)
+    etiquetas = {}
+    for fecha, g in df.groupby("sesion"):
+        t = or_bars + espera_barras
+        if len(g) < t + 3:
+            continue
+        c = g["Close"].astype(float)
+        px = float(c.iloc[t])
+        orh = float(g["High"].iloc[:or_bars].max()); orl = float(g["Low"].iloc[:or_bars].min())
+        tp = (g["High"] + g["Low"] + g["Close"]) / 3.0
+        vwap = float(((tp * g["Volume"]).cumsum() / g["Volume"].cumsum().replace(0, np.nan)).iloc[t])
+        ema9 = float(c.iloc[:t + 1].ewm(span=9, adjust=False).mean().iloc[-1])
+        votos = (1 if px > vwap else -1) + (1 if px > orh else (-1 if px < orl else 0)) + (1 if px > ema9 else -1)
+        etiquetas[str(fecha)] = "señal" if abs(votos) >= 2 else "amarillo"
+    bt = backtest_orb(df, or_min, interval, coste_bps)
+    if bt.empty or not etiquetas:
+        return {"mensaje": "Datos insuficientes."}
+    bt = bt.copy()
+    bt["grupo"] = bt["sesion"].map(etiquetas)
+    res = {}
+    for grupo in ("señal", "amarillo"):
+        sel = bt[bt["grupo"] == grupo]["neto_%"]
+        if len(sel) >= 5:
+            res[grupo] = {"n": len(sel), "exp_neta_pct": round(float(sel.mean()), 3),
+                          "win": round(float((sel > 0).mean()) * 100, 1)}
+    if "señal" in res and "amarillo" in res:
+        res["filtro_util"] = res["amarillo"]["exp_neta_pct"] < res["señal"]["exp_neta_pct"]
+    return res
 
 
 def backtest_estrategia(df, estrategia="orb", or_min=30, interval="5m", coste_bps=6.0):

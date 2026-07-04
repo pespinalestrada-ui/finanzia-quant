@@ -1227,6 +1227,21 @@ def tab_validar_veredicto(txt, horizon, trials):
         return f"**Error:** {e}"
 
 
+def _guia_secciones():
+    """Lee guia_usuario.md y la parte en secciones (## titulo, cuerpo)."""
+    f = HERE / "guia_usuario.md"
+    if not f.exists():
+        return "## Guía no encontrada — regenera con: node app/build_manual.js", []
+    txt = f.read_text(encoding="utf-8")
+    partes = txt.split("\n## ")
+    intro = partes[0]
+    secciones = []
+    for p in partes[1:]:
+        lineas = p.split("\n", 1)
+        secciones.append((lineas[0].strip(), lineas[1] if len(lineas) > 1 else ""))
+    return intro, secciones
+
+
 # ---- Watchlist única persistente (compartida por todas las pestañas) -------
 _WL_FILE = PROJ / "watchlist.txt"
 _WL_DEFAULT = "AAPL, MSFT, NVDA, GOOGL, AMZN, META, JPM, XOM, KO, SAB.MC"
@@ -1836,6 +1851,13 @@ def build():
                     binf = gr.Button("🗞️ Generar informe ahora", variant="primary")
                     mdinf = gr.Markdown()
                     binf.click(tab_informe_semanal, [], [mdinf])
+        with gr.Tab("📖 Guía"):
+            _intro, _secs = _guia_secciones()
+            gr.Markdown(_intro)
+            for _tit, _cuerpo in _secs:
+                with gr.Accordion(_tit, open=_tit.startswith("🚀")):
+                    gr.Markdown(_cuerpo)
+            gr.Markdown("> Versión completa con capturas: **Manual_FinanzIA.docx** en la carpeta del proyecto.")
         # guardar watchlist -> actualiza el fichero y los 11 campos que la usan
         wbtn.click(_wl_save, [wtxt], [wmd, t3, t4, tse, trk, tsy, tvb, tsb, tr, tal, tis, tf])
     return app

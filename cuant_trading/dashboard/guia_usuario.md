@@ -1,0 +1,455 @@
+# 📖 Guía de usuario — FinanzIA
+
+_Herramienta de análisis y educación. No es recomendación de inversión. Practica siempre primero sin dinero real._
+
+## 🚀 Empieza aquí (2 minutos)
+Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermedio]** cuando te sientas cómodo · **[Avanzado]** matemática fina, sáltatelas al principio.
+
+**La regla de oro:** nunca pongas dinero real hasta haberlo practicado de mentira (Diario y Alpaca Paper). Predecir el precio exacto no se puede; el valor está en controlar el riesgo y no engañarse.
+
+**Tus primeros 15 minutos:**
+1. Abre 🌡️ Mercado y mira si hay miedo o codicia.
+2. Escribe una empresa en ★ Veredicto y pulsa 'Analizar TODO'.
+3. Si dice COMPRAR, mira el plan sugerido (acciones y stop).
+4. Apúntalo en 📒 Diario. Tras 20-30 operaciones sabrás si ganarías.
+
+**Según lo que quieras hacer:**
+
+| Quiero… | Ve a |
+|---|---|
+| Saber si comprar/vender UNA empresa | ★ Veredicto |
+| Elegir entre VARIAS empresas | 📊 Factores  (y luego ★ Veredicto) |
+| Ver el ambiente general del mercado | 🌡️ Mercado |
+| Saber cuántas acciones comprar | 9 · Tamaño posición |
+| Ver el riesgo de mi lista | 🛡️ Riesgo |
+| Practicar sin dinero real | 📒 Diario  +  🦙 Alpaca Paper |
+| Que me avisen de movimientos | 🔔 Alertas |
+| Ver noticias de una empresa | 8 · Sentimiento |
+| Saber si mi método de verdad funciona | 📈 Rendimiento  +  🔬 Validar Veredicto |
+
+## Bloque 1 · Para el día a día (empieza por aquí)
+
+### 📊 Factores  `[Básico]`
+**Para qué sirve:** Te ordena una lista de empresas de mejor a peor, según si están baratas, si vienen subiendo, si la empresa es sólida y si son tranquilas. Como un ranking para elegir candidatas.
+
+**Cómo se usa:** Escribe varias empresas separadas por comas (ej. AAPL, MSFT, NVDA) y pulsa Rankear.
+
+**Qué significa lo que ves:**
+- La de arriba (rank 1) es la 'mejor nota' del grupo.
+- La columna 'señal' te dice: COMPRAR (las mejores), EVITAR (las peores) o neutral.
+- Los números z son solo la posición dentro del grupo: + es bueno, − es malo.
+
+**👉 Qué hago con esto:** Úsala para PRESELECCIONAR. Quédate con las 2-3 de arriba y luego míralas a fondo en la pantalla ★ Veredicto.
+
+### ★ Veredicto  `[Básico]`
+**Para qué sirve:** La pantalla estrella. Analiza UNA empresa por todos lados y te da un resumen: COMPRAR, MANTENER o VENDER, con el porqué.
+
+**Cómo se usa:** Escribe una empresa (ej. AAPL) y pulsa 'Analizar TODO'. Los dos checkbox son opcionales (déjalos sin marcar al principio).
+
+**Qué significa lo que ves:**
+- Arriba, el veredicto en grande con un color: 🟢 comprar, 🟡 esperar, 🔴 vender.
+- La tabla son los 'motivos' (tendencia, fuerza, etc.). No hace falta entender cada fila.
+- MANTENER = ni claro sí ni claro no, mejor esperar.
+
+**👉 Qué hago con esto:** Es tu pantalla principal. Si dice MANTENER, no operes. NO es un consejo garantizado: es un resumen para ayudarte a decidir.
+
+### 🌡️ Mercado  `[Básico]`
+**Para qué sirve:** El 'tiempo' de la bolsa antes de mirar empresas: ¿hay miedo o codicia?, ¿está nervioso el mercado?
+
+**Cómo se usa:** Pulsa 'Medir mercado' (opcional: escribe una empresa para ver sus datos básicos).
+
+**Qué significa lo que ves:**
+- Miedo extremo suele ser buen momento (la gente vende por pánico). Codicia extrema, cuidado.
+- El VIX alto = mercado nervioso: conviene ir con menos dinero.
+
+**👉 Qué hago con esto:** Míralo al empezar el día. Si hay pánico o euforia extrema, sé más prudente.
+
+### 8 · Sentimiento  `[Básico]`
+**Para qué sirve:** Lee las noticias recientes de una empresa y te dice si suenan buenas, malas o neutras.
+
+**Cómo se usa:** Escribe una empresa y pulsa 'Analizar noticias'. La primera vez tarda ~1 min (carga el modelo).
+
+**Qué significa lo que ves:**
+- Un resumen: POSITIVO / NEGATIVO / NEUTRAL.
+- Las noticias viejas pesan menos que las de hoy.
+
+**👉 Qué hago con esto:** Úsalo como contexto: ¿hay alguna noticia gorda detrás del movimiento? Es una señal más, no la decisión.
+
+### 2 · Indicadores  `[Básico]`
+**Para qué sirve:** Los 'termómetros' técnicos clásicos de una empresa (si está cara/barata a corto, si cruza medias, etc.).
+
+**Cómo se usa:** Escribe una empresa y pulsa Calcular.
+
+**Qué significa lo que ves:**
+- Cada indicador da una lectura (sobreventa/sobrecompra, cruce al alza, etc.).
+- Ninguno decide solo; el ★ Veredicto ya los junta por ti.
+
+**👉 Qué hago con esto:** Para curiosear el detalle técnico. Si no quieres complicarte, usa directamente el Veredicto.
+
+### 3 · Screener  `[Básico]`
+**Para qué sirve:** Pasa un filtro rápido a una lista de empresas y te dice cuáles tienen más empuje ahora mismo.
+
+**Cómo se usa:** Escribe varias empresas y pulsa Escanear.
+
+**Qué significa lo que ves:**
+- Ordenadas por fuerza/empuje.
+
+**👉 Qué hago con esto:** Para encontrar candidatas rápido. Luego confírmalas en el ★ Veredicto.
+
+### 4 · Señales  `[Básico]`
+**Para qué sirve:** Busca avisos claros de compra/venta (cruces, rebotes) en una lista de empresas.
+
+**Cómo se usa:** Escribe varias empresas y pulsa 'Buscar señales'.
+
+**Qué significa lo que ves:**
+- Solo muestra lo accionable ahora.
+
+**👉 Qué hago con esto:** Un radar de oportunidades. Confirma siempre con el Veredicto antes de nada.
+
+### 9 · Tamaño posición  `[Básico]`
+**Para qué sirve:** Te dice CUÁNTAS acciones comprar para arriesgar solo lo que tú decidas (p. ej. el 1% de tu dinero).
+
+**Cómo se usa:** Pon tu capital y el % de riesgo. Pon entrada y stop, o solo el ticker para que los calcule solos.
+
+**Qué significa lo que ves:**
+- Te da el número de acciones.
+- El 'stop' es el precio al que saldrías si va mal, para no perder de más.
+
+**👉 Qué hago con esto:** Úsala SIEMPRE antes de comprar: define cuánto puedes perder ANTES de entrar. Regla de oro.
+
+### 🛡️ Riesgo  `[Básico]`
+**Para qué sirve:** Mide cuánto podrías perder con tu lista de empresas: en un día malo, en el peor momento, y si están muy 'pegadas' entre sí.
+
+**Cómo se usa:** Escribe tu lista de empresas y pulsa 'Medir riesgo'.
+
+**Qué significa lo que ves:**
+- VaR = pérdida fea de un día malo. Drawdown = la peor caída que habrías sufrido.
+- Si las empresas están poco relacionadas, diversificas bien (menos sustos).
+
+**👉 Qué hago con esto:** Antes de juntar varias posiciones, comprueba que no es una bomba de riesgo.
+
+### 1 · Forecast  `[Básico]`
+**Para qué sirve:** Dibuja una predicción del precio a futuro con una banda de '¿hasta dónde podría ir?'.
+
+**Cómo se usa:** Escribe una empresa, elige el motor (deja Prophet) y pulsa Forecast.
+
+**Qué significa lo que ves:**
+- La línea es la predicción; la banda, la incertidumbre (cuanto más lejos, más ancha).
+- AVISO IMPORTANTE: a 90 días esto NO acierta mejor que el azar. Tómalo flojo.
+
+**👉 Qué hago con esto:** Míralo como orientación, NUNCA como una bola de cristal. El valor real está en el riesgo, no en adivinar el precio.
+
+## Bloque 2 · Practicar y operar (sin dinero real)
+
+### 📒 Diario  `[Básico]`
+**Para qué sirve:** Un cuaderno de operaciones DE MENTIRA. Apuntas tus compras/ventas imaginarias y te dice si tu método gana o pierde.
+
+**Cómo se usa:** Abrir = apuntar una compra (empresa, precio, stop). Cerrar = poner el precio al que 'saliste'. Refrescar para ver tus números.
+
+**Qué significa lo que ves:**
+- Con 20-30 operaciones ya sabes si tu método tiene ventaja.
+- 'Expectancy' = cuánto ganas de media por operación. Positivo = bien.
+
+**👉 Qué hago con esto:** ÚSALO antes de jugarte un euro real. Si en mentira pierdes, en real también.
+
+### 🦙 Alpaca Paper  `[Intermedio]`
+**Para qué sirve:** Como el Diario pero conectado a una cuenta de prácticas REAL (Alpaca): dinero ficticio, precios en vivo, órdenes de mentira.
+
+**Cómo se usa:** Refrescar = ver tu cuenta. Precio = cotización en vivo. Enviar orden = TÚ pulsas el botón para 'comprar' de mentira.
+
+**Qué significa lo que ves:**
+- Es dinero FICTICIO (empiezas con ~100.000 $ de prácticas).
+- Cada orden puede apuntarse sola en tu Diario.
+
+**👉 Qué hago con esto:** Practica aquí semanas antes de pensar en real. Las órdenes las disparas tú; el programa nunca opera solo. Necesita una clave gratis de Alpaca.
+
+### ⏱️ Intradía  `[Intermedio]`
+**Para qué sirve:** Para operar dentro del mismo día. Lo primero: el 🚦 SEMÁFORO te dice si hoy conviene operar al alza, a la baja o no operar. Y el backtest prueba estrategias DESCONTANDO los costes.
+
+**Cómo se usa:** '🚦 Semáforo de HOY' = ¿opero o no? (usa datos EN VIVO de Alpaca si tienes clave). '📡 Snapshot EN VIVO' = foto en tiempo real. 'Backtest' = prueba una estrategia (orb/vwap/ema9) con costes. 'Escanear varios' = compara empresas.
+
+**Qué significa lo que ves:**
+- El semáforo: 🟢 sesgo largo · 🔴 sesgo corto · 🟡 no operes hoy (la respuesta más frecuente y a menudo la correcta).
+- En el backtest, lo importante es la ganancia NETA (tras costes), no la bruta.
+- Hay 3 estrategias para comparar: rotura de apertura (orb), retorno al VWAP (vwap) y pullback a la media (ema9).
+
+**👉 Qué hago con esto:** Empieza el día por el semáforo. Si está 🟡, no operes: no operar también es ganar. Si operas, respeta el stop que te sugiere.
+
+### 🪙 Veredicto Cripto  `[Intermedio]`
+**Para qué sirve:** El mismo ★ Veredicto pero para criptomonedas (Bitcoin, Ethereum…).
+
+**Cómo se usa:** Escribe el cripto en formato BTC-USD, ETH-EUR… y pulsa Analizar.
+
+**Qué significa lo que ves:**
+- Igual que el Veredicto normal: COMPRAR / MANTENER / VENDER.
+- Incluye el 'miedo y codicia' del mundo cripto.
+
+**👉 Qué hago con esto:** Recuerda que la cripto se mueve muchísimo más: ve con más cuidado y menos dinero.
+
+## Bloque 3 · El sistema automático (avanzado)
+
+### 📡 Señales  `[Intermedio]`
+**Para qué sirve:** Te dice 'qué tocaría operar hoy' de tu lista, según el método del Veredicto.
+
+**Cómo se usa:** Escribe tu lista y pulsa 'Generar señales'.
+
+**Qué significa lo que ves:**
+- Un ranking con COMPRAR / MANTENER / VENDER.
+
+**👉 Qué hago con esto:** Es el primer paso del 'piloto automático'. Trátalo como prácticas, no como dinero seguro.
+
+### ⚖️ Plan / Riesgo  `[Intermedio]`
+**Para qué sirve:** Convierte esas señales en un plan concreto: cuántas acciones de cada una, con su stop y su riesgo.
+
+**Cómo se usa:** Pon tu capital y pulsa 'Generar plan'.
+
+**Qué significa lo que ves:**
+- Te dice acciones, coste y riesgo de cada posición.
+- Avisa si te pasas de riesgo.
+
+**👉 Qué hago con esto:** Revisa que el riesgo total te parece asumible antes de nada.
+
+### 🤖 Sistema  `[Avanzado]`
+**Para qué sirve:** Todo junto y de un clic: genera el plan y, si TÚ confirmas, lo manda a la cuenta de prácticas (Alpaca) y lo apunta en el Diario.
+
+**Cómo se usa:** 1) 'Generar plan'. 2) Marca 'Confirmo enviar a PAPER' y pulsa 'Ejecutar'.
+
+**Qué significa lo que ves:**
+- Sin marcar la casilla, no envía nada.
+- Es dinero ficticio.
+
+**👉 Qué hago con esto:** El 'robot' de prácticas. Empléalo solo cuando entiendas los pasos anteriores.
+
+### 📈 Rendimiento  `[Intermedio]`
+**Para qué sirve:** ¿Lo estás haciendo mejor que comprar el mercado y no tocar nada? Te lo compara con el índice (SPY).
+
+**Cómo se usa:** Pon tu capital y pulsa 'Medir rendimiento'.
+
+**Qué significa lo que ves:**
+- Tu ganancia vs SPY (comprar y mantener).
+- Si no le ganas, indexarte (comprar el índice) sería mejor.
+
+**👉 Qué hago con esto:** La prueba de la verdad. Si tu sistema no bate a SPY, mejor algo simple.
+
+### 🎲 Monte Carlo  `[Avanzado]`
+**Para qué sirve:** Simula MILES de futuros posibles para ver el abanico de lo que podría pasar (no una predicción, sino el rango).
+
+**Cómo se usa:** Precio: una empresa. Sistema: pon tu win-rate/payoff (o usa tu diario).
+
+**Qué significa lo que ves:**
+- En 'sistema', lo clave es la PROBABILIDAD DE RUINA (acabar reventado) y la peor caída.
+- Un sistema con buena media pero alta ruina NO sirve.
+
+**👉 Qué hago con esto:** Úsalo para ver si tu método aguanta la mala suerte, no solo la buena.
+
+### 🔬 Validar Veredicto  `[Avanzado]`
+**Para qué sirve:** Comprueba con datos del pasado si el Veredicto realmente acierta o solo lo parece.
+
+**Cómo se usa:** Escribe varias empresas y pulsa Validar. Tarda ~1 min.
+
+**Qué significa lo que ves:**
+- El número clave ('Deflated Sharpe') dice si la ventaja es real o suerte.
+- Resultado honesto habitual: en grandes empresas, no hay ventaja fácil.
+
+**👉 Qué hago con esto:** La prueba de honestidad. Te recuerda que esto mide, no promete milagros.
+
+### 📊 Backtest Sistema  `[Avanzado]`
+**Para qué sirve:** Prueba la estrategia completa sobre años pasados (con costes) y la compara con el índice.
+
+**Cómo se usa:** Escribe un universo de empresas y pulsa Backtestear.
+
+**Qué significa lo que ves:**
+- Ganancia, riesgo y peor caída vs SPY.
+- Que ganara en el pasado NO garantiza el futuro.
+
+**👉 Qué hago con esto:** Mídelo, pero no te lo creas a pies juntillas: un buen pasado puede ser casualidad.
+
+## Bloque 4 · Matemática de fondo (solo si te pica la curiosidad)
+
+### 🔗 Pairs (cointegración)  `[Avanzado]`
+**Para qué sirve:** Busca PAREJAS de activos que se mueven juntos. Cuando se separan mucho, apuestas a que vuelven a juntarse.
+
+**Cómo se usa:** Escribe varias empresas y pulsa 'Buscar pares'.
+
+**Qué significa lo que ves:**
+- Te da parejas y cuándo están 'estiradas' (z alto).
+- Es una técnica neutral (no dependes de que la bolsa suba).
+
+**👉 Qué hago con esto:** Avanzado. Es de lo poco con ventaja real, pero requiere cuidado. Para más adelante.
+
+### 🧮 HRP Cartera  `[Avanzado]`
+**Para qué sirve:** Reparte tu dinero entre varios activos de forma más robusta que el método clásico (que es inestable).
+
+**Cómo se usa:** Escribe varios activos y pulsa 'Comparar asignación'.
+
+**Qué significa lo que ves:**
+- Compara métodos: el robusto suele dar menos sustos (menos volatilidad).
+
+**👉 Qué hago con esto:** Si algún día gestionas una cartera de varios activos, usa este reparto en vez del clásico.
+
+### 📉 EVT Colas  `[Avanzado]`
+**Para qué sirve:** Mide bien el riesgo de CRASH (las caídas gordas), que los métodos normales subestiman.
+
+**Cómo se usa:** Escribe una empresa/índice y pulsa 'Medir cola'.
+
+**Qué significa lo que ves:**
+- Compara el riesgo extremo 'normal' vs el real: el normal casi siempre se queda corto.
+
+**👉 Qué hago con esto:** Para entender cuánto puede doler de verdad un día negro.
+
+### 🌀 Régimen (HMM)  `[Avanzado]`
+**Para qué sirve:** Detecta en qué 'modo' está el mercado: calma alcista, nervios, o lateral.
+
+**Cómo se usa:** Escribe un índice (ej. SPY) y pulsa 'Detectar régimen'.
+
+**Qué significa lo que ves:**
+- 🟢 calma = bien para seguir tendencia. 🔴 nervios = baja el tamaño. 🟡 lateral = cautela.
+
+**👉 Qué hago con esto:** Úsalo como semáforo general antes de operar tendencia.
+
+### 🎯 Meta-labeling  `[Avanzado]`
+**Para qué sirve:** Un segundo filtro de inteligencia artificial que decide SI hacer caso a una señal (menos operaciones, pero mejores).
+
+**Cómo se usa:** Escribe una empresa y pulsa 'Medir'. Tarda ~1-2 min.
+
+**Qué significa lo que ves:**
+- Compara: con filtro aciertas más, pero operas menos.
+- A veces ayuda, a veces no: te lo dice con números.
+
+**👉 Qué hago con esto:** Curiosidad técnica. Muestra cómo afinar señales sin engañarte.
+
+### 🧲 RMT (correlación)  `[Avanzado]`
+**Para qué sirve:** Limpia el 'ruido' de cómo se relacionan los activos entre sí, usando una idea de la física.
+
+**Cómo se usa:** Escribe varios activos (4 o más) y pulsa 'Limpiar correlación'.
+
+**Qué significa lo que ves:**
+- Te dice cuántas relaciones son señal de verdad y cuántas son ruido.
+
+**👉 Qué hago con esto:** Mejora el reparto de cartera cuando manejas muchos activos.
+
+### 🛰️ Kalman (pairs)  `[Avanzado]`
+**Para qué sirve:** Versión 'lista' de las parejas: la relación entre dos activos cambia con el tiempo, y esto la sigue al día.
+
+**Cómo se usa:** Escribe dos activos (A y B) y pulsa 'Kalman dinámico'. Ej: KO y PEP.
+
+**Qué significa lo que ves:**
+- Compara la relación 'fija' vs la 'que se adapta'. La que se adapta es más fiable.
+
+**👉 Qué hago con esto:** Si haces pares, usa esta versión: no se queda anclada al pasado.
+
+### 📡 Entropía (lead-lag)  `[Avanzado]`
+**Para qué sirve:** Descubre qué activo MUEVE a cuál (quién manda y quién sigue), incluso de formas que la correlación no ve.
+
+**Cómo se usa:** Escribe varios activos y pulsa 'Medir flujo info'.
+
+**Qué significa lo que ves:**
+- LÍDERES = mandan información. SEGUIDORES = la reciben.
+
+**👉 Qué hago con esto:** Para entender quién marca el ritmo en un grupo de activos.
+
+## Bloque 5 · Extras de análisis
+
+### 5 · Backtest  `[Básico]`
+**Para qué sirve:** Prueba una regla simple (medias, RSI) en una empresa y la compara con 'comprar y no tocar'.
+
+**Cómo se usa:** Escribe una empresa, elige estrategia y pulsa Backtest.
+
+**Qué significa lo que ves:**
+- Si la regla no gana a 'comprar y mantener', no aporta.
+
+**👉 Qué hago con esto:** Para ver si una idea sencilla habría funcionado. Sin costes: tómalo orientativo.
+
+### 6 · Correlación  `[Básico]`
+**Para qué sirve:** Te dice cómo de parecidos se mueven varios activos (para no poner todo en lo mismo).
+
+**Cómo se usa:** Escribe varios activos y pulsa Correlación.
+
+**Qué significa lo que ves:**
+- Poco parecidos (correlación baja) = buena diversificación.
+
+**👉 Qué hago con esto:** Antes de añadir una posición, mira que no duplica lo que ya tienes.
+
+### 7 · Cartera  `[Intermedio]`
+**Para qué sirve:** Calcula un reparto 'óptimo' clásico entre varios activos (busca el mejor premio por riesgo).
+
+**Cómo se usa:** Escribe varios activos y pulsa Optimizar.
+
+**Qué significa lo que ves:**
+- Te da unos pesos sugeridos.
+
+**👉 Qué hago con esto:** OJO: el método clásico es inestable. Para algo más robusto, usa 🧮 HRP.
+
+### 🎯 Alpha (rigor)  `[Avanzado]`
+**Para qué sirve:** ¿Tiene esta empresa una ventaja REAL a corto plazo, o es puro azar? Lo mide con honestidad.
+
+**Cómo se usa:** Escribe una empresa y pulsa 'Medir ventaja'. Tarda ~1-2 min.
+
+**Qué significa lo que ves:**
+- Si el 'p-valor' es alto, NO hay ventaja (es lo normal en grandes empresas).
+- La volatilidad sí es algo predecible; la dirección, no.
+
+**👉 Qué hago con esto:** Te baja a la realidad: casi nadie le gana al azar a corto. Eso es bueno saberlo.
+
+### 📏 Conformal  `[Avanzado]`
+**Para qué sirve:** Hace una banda de predicción HONESTA: una que de verdad acierta el % de veces que dice.
+
+**Cómo se usa:** Escribe una empresa y pulsa 'Calibrar banda'. Tarda ~30-60 s.
+
+**Qué significa lo que ves:**
+- 'Cobertura real' = cuántas veces el precio cayó dentro de la banda. Si ≈80%, la banda no miente.
+
+**👉 Qué hago con esto:** Para cuando quieras una banda de incertidumbre en la que confiar de verdad.
+
+### 🔔 Alertas  `[Básico]`
+**Para qué sirve:** Vigila tu lista y te avisa si pasa algo (subida/bajada brusca, cruce, extremos).
+
+**Cómo se usa:** Escribe tu lista y pulsa Escanear.
+
+**Qué significa lo que ves:**
+- Solo muestra lo que salta una alarma ahora mismo.
+
+**👉 Qué hago con esto:** Para no estar mirando la pantalla todo el día. Te avisa de lo importante.
+
+### 🏦 Cartera LP  `[Básico]`
+**Para qué sirve:** Tu cartera de LARGO PLAZO en 3 botones: reparte tu dinero entre varios activos de forma robusta (HRP), te dice cuántas acciones comprar, y cada mes te da las órdenes de ajuste. También compara aportar cada mes (DCA) vs entrar de golpe.
+
+**Cómo se usa:** 1) Escribe tus activos y tu capital → 'Crear cartera'. 2) Una vez al MES → 'Revisar rebalanceo'. 3) Cuando ejecutes los ajustes → 'He rebalanceado'.
+
+**Qué significa lo que ves:**
+- Te da acciones exactas a comprar y el cash que sobra.
+- En la revisión, solo pide ajustar lo que se desvía más de 2.5 puntos.
+- Dividendos incluidos (total return).
+
+**👉 Qué hago con esto:** La forma tranquila de invertir a años vista: crea, revisa 1 vez al mes, y no toques más. Mezcla bolsa con oro/bonos para diversificar.
+
+### 🗞️ Informe semanal  `[Básico]`
+**Para qué sirve:** Tu resumen de la semana en un clic: señales de tu watchlist + riesgo de la cesta + titulares, en un documento Word.
+
+**Cómo se usa:** Pulsa 'Generar informe ahora' (o doble clic en Informe_Semanal.bat). El Word aparece en la carpeta del proyecto.
+
+**Qué significa lo que ves:**
+- Usa tu watchlist guardada (el desplegable 💾 de arriba del todo).
+
+**👉 Qué hago con esto:** Genera uno cada fin de semana y revísalo con calma antes de que abra el mercado.
+
+## 📚 Diccionario sencillo
+
+| Palabra | Qué significa (fácil) |
+|---|---|
+| **Acción / Ticker** | Una empresa que cotiza en bolsa. El ticker es su código corto (AAPL = Apple, MSFT = Microsoft). |
+| **COMPRAR / MANTENER / VENDER** | El resumen final. COMPRAR = las señales apuntan a posible subida. MANTENER = ni claro sí ni no, mejor esperar. VENDER = apuntan a bajada. |
+| **Forecast (predicción)** | Un dibujo de hacia dónde podría ir el precio. Aviso: a medio plazo NO es fiable; tómalo flojo. |
+| **Tendencia** | Si el precio viene subiendo o bajando últimamente. |
+| **Volatilidad** | Cuánto se mueve un precio. Alta = pega saltos grandes (más nervios, más riesgo). |
+| **Sobrecompra / sobreventa** | Ha subido o bajado mucho muy rápido; podría girarse pronto. |
+| **Stop** | El precio al que decides salir si la cosa va mal, para no perder de más. Se pone ANTES de entrar. |
+| **Riesgo** | Cuánto dinero pierdes si el precio llega a tu stop. |
+| **Drawdown** | La peor caída desde un máximo. 'Cuánto llegué a perder en el peor momento.' |
+| **VaR** | Una estimación de la pérdida de un día malo (no del peor de todos, pero sí uno feo). |
+| **Backtest** | Probar una idea con datos del pasado: '¿esto habría funcionado?'. |
+| **Expectancy** | Cuánto ganas de media por operación, según tu historial. Positiva = vas bien. |
+| **Paper trading** | Operar de mentira, con dinero ficticio, para practicar sin riesgo. |
+| **Diversificación** | No poner todos los huevos en la misma cesta. |
+| **Sharpe** | Una nota de 'ganancia ajustada al riesgo'. Más alta = mejor relación premio/sustos. |
+| **Bate al mercado** | Hacerlo mejor que comprar el índice (SPY) y no tocar nada. Si no lo bates, mejor el índice. |

@@ -41,7 +41,8 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "evt_risk", SUITE / "montecarlo", SUITE / "system_backtest",
           SUITE / "hmm_regime", SUITE / "meta_labeling", SUITE / "rmt_clean",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
-          SUITE / "informe"]:
+          SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
+          SUITE / "cpcv"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -1227,6 +1228,74 @@ def tab_validar_veredicto(txt, horizon, trials):
         return f"**Error:** {e}"
 
 
+def tab_opciones(ticker, tipo, strike, dias, vol, tasa):
+    """Black-Scholes-Merton + Griegas. Con ticker: cadena real; sin el: teorico."""
+    try:
+        import options_greeks as OG
+        tk = (ticker or "").strip().upper()
+        if tk:
+            tabla, meta = OG.cadena_real(tk, tipo)
+            md = ("### {t} - {ti}s - vencimiento {v} ({d} dias)\n"
+                  "Spot **{s}** - volatilidad historica **{vh}%**\n\n").format(
+                      t=tk, ti=tipo.upper(), v=meta["vencimiento"], d=meta["dias"],
+                      s=meta["spot"], vh=meta["vol_hist_pct"])
+            if meta["desfase_datos"]:
+                md += ("> WARNING **Cotizaciones desfasadas**: la volatilidad implicita en los precios "
+                       "({a}%) dobla a la publicada ({b}%), senal de que las opciones cotizan de otra "
+                       "sesion que el spot (mercado cerrado). Fiate de las Griegas, no del "
+                       "'teorico vs mercado'.\n\n").format(a=meta["iv_calc_med"], b=meta["iv_mkt_med"])
+            md += ("> **Delta**: cuanto gana la opcion si el activo sube 1 EUR (y probabilidad aproximada "
+                   "de acabar con valor). **Gamma**: como se acelera el Delta. **Vega**: sensibilidad a "
+                   "la volatilidad. **Theta**: lo que te quita el reloj cada dia. No es recomendacion.")
+            return tabla, md
+        tau = max(int(dias), 1) / 365.0
+        g = OG.bsm(100.0, float(strike), tau, float(tasa), float(vol), 0.0, tipo)
+        md = "### Opcion teorica ({ti}) - S=100 - K={k} - {d} dias - vol={v}%\n\n".format(
+            ti=tipo, k=strike, d=int(dias), v=round(float(vol) * 100))
+        md += OG.explicar(g, 100.0, float(strike), tau, tipo)
+        fila = {k: round(v, 4) for k, v in g.items()
+                if k in ("precio", "delta", "gamma", "vega", "theta", "rho")}
+        return pd.DataFrame([fila]), md
+    except Exception as e:
+        return pd.DataFrame(), "**Error:** " + str(e)
+
+
+def tab_ou_optimo(a, b, period, coste, tasa, capital):
+    """Calibracion Ornstein-Uhlenbeck + parada optima (salida matematica, no a ojo)."""
+    try:
+        import ou_optimal as OU
+        A, B = a.strip().upper(), b.strip().upper()
+        par, plan, _spread = OU.analizar_par(A, B, period, float(coste), float(tasa), float(capital))
+        tabla = pd.DataFrame([
+            {"Parametro": "beta (cobertura)", "Valor": round(par.get("beta", float("nan")), 4)},
+            {"Parametro": "theta (fuerza del muelle, /ano)", "Valor": round(par["theta"], 3)},
+            {"Parametro": "Half-life (dias)", "Valor": round(par["half_life"] * 252, 1)},
+            {"Parametro": "mu (nivel de reposo)", "Valor": round(par["mu"], 4)},
+            {"Parametro": "sigma_eq (vaiven normal)", "Valor": round(par["sigma_eq"], 4)},
+            {"Parametro": "Spread hoy (sigma_eq desde mu)", "Valor": round(plan["z"], 2)},
+            {"Parametro": "Tamano sugerido (% capital)", "Valor": round(plan["fraccion_capital"] * 100, 1)},
+            {"Parametro": "Stop (2 sigma_eq)", "Valor": round(plan["stop"], 4)},
+            {"Parametro": "SALIDA OPTIMA", "Valor": round(plan["salida_optima"], 4)},
+        ])
+        md = "```\n" + OU.informe(A, B, par, plan) + "\n```"
+        return tabla, md
+    except Exception as e:
+        return pd.DataFrame(), "**Error:** " + str(e)
+
+
+def tab_cpcv(txt, horizonte, bloques, prueba):
+    """Validacion combinatoria purgada + Sharpe con error + DSR con N efectivo."""
+    try:
+        import cpcv as CP
+        tickers = _parse(txt)
+        if len(tickers) < 2:
+            return "Mete al menos 2 tickers."
+        res = CP.cpcv(tickers, "6y", int(horizonte), int(bloques), int(prueba))
+        return "```\n" + CP.informe(res) + "\n```"
+    except Exception as e:
+        return "**Error:** " + str(e)
+
+
 def _guia_secciones():
     """Lee guia_usuario.md y la parte en secciones (## titulo, cuerpo)."""
     f = HERE / "guia_usuario.md"
@@ -1558,7 +1627,7 @@ def build():
                     mdmc2 = gr.Markdown()
                     figmc2 = gr.Plot()
                     bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
-                with gr.Tab("📊 Backtest Sistema"):
+                with gr.Tab("📊 Backtest sist."):
                     gr.Markdown("**Backtest de la estrategia completa** sobre el histórico: compra el "
                                 "**top-N** por score del Veredicto, rebalancea, **resta costes**, y compara "
                                 "con **SPY** buy & hold. Un backtest que bate a SPY mide, no promete.")
@@ -1573,7 +1642,7 @@ def build():
                     mdsb = gr.Markdown()
                     figsb = gr.Plot()
                     bsb.click(tab_system_backtest, [tsb, nsb, rsb, csb, psb], [figsb, mdsb])
-                with gr.Tab("🔬 Validar Veredicto"):
+                with gr.Tab("🔬 Validar"):
                     gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
                                 "point-in-time: **IC** (score↔retorno futuro), retornos por **quintil**, "
                                 "Sharpe long-short y **Deflated Sharpe** (corrige multiple-testing). "
@@ -1586,9 +1655,23 @@ def build():
                         bvb = gr.Button("Validar", variant="primary")
                     mdvb = gr.Markdown()
                     bvb.click(tab_validar_veredicto, [tvb, hvb, trvb], [mdvb])
+                with gr.Tab("🧪 CPCV"):
+                    gr.Markdown("**La validación más exigente**: divide la historia en bloques y prueba en "
+                                "MUCHAS combinaciones fuera de muestra, con **purgado y embargo** (el futuro "
+                                "no se cuela). Da el **PBO** (probabilidad de sobreajuste), el Sharpe con su "
+                                "**margen de error** y el **Deflated Sharpe con N efectivo**. Tarda ~1-2 min.")
+                    with gr.Row():
+                        tcp = gr.Textbox(value="AAPL, MSFT, NVDA, GOOGL, AMZN, JPM, XOM, KO",
+                                         label="Universo (coma)", scale=4)
+                        hcp = gr.Dropdown([5, 10, 20], value=10, label="Horizonte (días)")
+                        ncp = gr.Dropdown([4, 5, 6, 8], value=6, label="Bloques (N)")
+                        kcp = gr.Dropdown([1, 2, 3], value=2, label="De prueba (k)")
+                        bcp = gr.Button("Validar con CPCV", variant="primary")
+                    mdcp = gr.Markdown()
+                    bcp.click(tab_cpcv, [tcp, hcp, ncp, kcp], [mdcp])
         with gr.Tab("🔬 Cuant avanzado"):
             with gr.Tabs():
-                with gr.Tab("🔗 Pairs (cointegración)"):
+                with gr.Tab("🔗 Pairs"):
                     gr.Markdown("**Arbitraje estadístico market-neutral**: busca pares COINTEGRADOS "
                                 "(Engle-Granger) con reversión a la media (half-life Ornstein-Uhlenbeck). "
                                 "Largo el barato / corto el caro cuando el z-score del spread es extremo.")
@@ -1600,7 +1683,7 @@ def build():
                     mdpr = gr.Markdown()
                     tbpr = gr.Dataframe(label="Pares cointegrados", wrap=True)
                     bpr.click(tab_pairs, [tpr, ppr], [tbpr, mdpr])
-                with gr.Tab("🧮 HRP Cartera"):
+                with gr.Tab("🧮 HRP"):
                     gr.Markdown("**Asignación robusta**: HRP (López de Prado) + Min-Var con **Ledoit-Wolf** "
                                 "vs equiponderada, medido **fuera de muestra**. Arregla la inestabilidad de "
                                 "Markowitz (no invierte la covarianza).")
@@ -1614,7 +1697,7 @@ def build():
                         tbhr = gr.Dataframe(label="HRP vs Min-Var vs Equal (OOS)", wrap=True)
                         whr = gr.Dataframe(label="Pesos HRP", wrap=True)
                     bhr.click(tab_hrp, [thr, phr], [tbhr, whr, mdhr])
-                with gr.Tab("📉 EVT Colas"):
+                with gr.Tab("📉 EVT"):
                     gr.Markdown("**Riesgo de cola (crash)** con Teoría de Valores Extremos: ajusta una "
                                 "Pareto Generalizada a la cola (POT) → VaR/ES extremos. Compara con histórico "
                                 "y normal: se ve cuánto **subestima la normal** el riesgo de crash.")
@@ -1625,7 +1708,7 @@ def build():
                         bev = gr.Button("Medir cola", variant="primary")
                     mdev = gr.Markdown()
                     bev.click(tab_evt, [tev, pev, uev], [mdev])
-                with gr.Tab("🌀 Régimen (HMM)"):
+                with gr.Tab("🌀 Régimen"):
                     gr.Markdown("**¿En qué régimen estamos?** Hidden Markov Model (gaussiano) identifica "
                                 "estados ocultos: 🟢 calma alcista, 🔴 alta volatilidad, 🟡 lateral. Úsalo "
                                 "como GATE: opera tendencia en 🟢, recorta en 🔴.")
@@ -1637,7 +1720,7 @@ def build():
                     mdhm = gr.Markdown()
                     fighm = gr.Plot()
                     bhm.click(tab_hmm, [thm, nhm, phm], [fighm, mdhm])
-                with gr.Tab("🎯 Meta-labeling"):
+                with gr.Tab("🎯 Meta-lab"):
                     gr.Markdown("**¿Actuar o no sobre la señal?** Meta-labeling (López de Prado): un 2º "
                                 "modelo ML filtra las señales primarias malas (tendencia) → menos trades, "
                                 "mejor precisión. La probabilidad sirve para dimensionar. Tarda ~1-2 min.")
@@ -1649,7 +1732,7 @@ def build():
                         bme = gr.Button("Medir meta-labeling", variant="primary")
                     mdme = gr.Markdown()
                     bme.click(tab_meta, [tme, hme, ume, pme], [mdme])
-                with gr.Tab("🧲 RMT (correlación)"):
+                with gr.Tab("🧲 RMT"):
                     gr.Markdown("**Limpia la matriz de correlación** con Random Matrix Theory (econofísica). "
                                 "Marchenko-Pastur separa señal de ruido: solo los autovalores sobre λ+ son "
                                 "reales. Mejora la asignación (no optimiza sobre ruido). Compara OOS.")
@@ -1661,7 +1744,7 @@ def build():
                     mdrm = gr.Markdown()
                     figrm = gr.Plot()
                     brm.click(tab_rmt, [trm, prm], [figrm, mdrm])
-                with gr.Tab("🛰️ Kalman (pairs)"):
+                with gr.Tab("🛰️ Kalman"):
                     gr.Markdown("**Hedge ratio DINÁMICO** para pairs trading con filtro de Kalman. El β entre "
                                 "dos activos deriva en el tiempo; Kalman lo estima día a día (mejor que el β "
                                 "fijo OLS). Operas el z-score del spread. Pares clásicos: KO/PEP, EWA/EWC, V/MA.")
@@ -1673,7 +1756,7 @@ def build():
                     mdka = gr.Markdown()
                     figka = gr.Plot()
                     bka.click(tab_kalman, [tka, tkb, pka], [figka, mdka])
-                with gr.Tab("📡 Entropía (lead-lag)"):
+                with gr.Tab("📡 Entropía"):
                     gr.Markdown("**¿Qué activo lidera a cuál?** Entropía de transferencia (teoría de la "
                                 "información): flujo de información direccional y NO lineal que la correlación "
                                 "no ve. Líderes vs seguidores. Útil para lead-lag y selección de features.")
@@ -1686,6 +1769,37 @@ def build():
                     mdte = gr.Markdown()
                     figte = gr.Plot()
                     bte.click(tab_te, [tte, bte_n, pte], [figte, mdte])
+                with gr.Tab("🎲 Opciones"):
+                    gr.Markdown("**Valorar opciones y sus Griegas** (Black-Scholes-Merton). Con ticker "
+                                "de EEUU trae la **cadena real**; sin ticker calcula una opción teórica. "
+                                "Delta/Gamma/Vega/Theta te dicen a qué es sensible tu posición.")
+                    with gr.Row():
+                        top = gr.Textbox(value="AAPL", label="Ticker EEUU (vacío = teórica)", scale=2)
+                        tipop = gr.Radio(["call", "put"], value="call", label="Tipo")
+                        kop = gr.Number(value=105, label="Strike (si es teórica)")
+                        dop = gr.Number(value=30, label="Días")
+                        vop = gr.Slider(0.05, 1.0, value=0.25, step=0.01, label="Volatilidad")
+                        rop = gr.Slider(0.0, 0.10, value=0.04, step=0.005, label="Tipo interés")
+                        bop = gr.Button("Valorar", variant="primary")
+                    mdop = gr.Markdown()
+                    tblop = gr.Dataframe(wrap=True)
+                    bop.click(tab_opciones, [top, tipop, kop, dop, vop, rop], [tblop, mdop])
+                with gr.Tab("⏳ OU óptimo"):
+                    gr.Markdown("**¿Cuándo cerrar exactamente?** Calibra el 'muelle' (Ornstein-Uhlenbeck) "
+                                "de un par y calcula el **umbral de salida óptimo** por acoplamiento suave "
+                                "(smooth-pasting), descontando el coste de operar. Además da tamaño y stop "
+                                "con la desviación estacionaria. Pares clásicos: KO/PEP, EWA/EWC, V/MA.")
+                    with gr.Row():
+                        oua = gr.Textbox(value="EWA", label="Activo A", scale=2)
+                        oub = gr.Textbox(value="EWC", label="Activo B", scale=2)
+                        oup = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
+                        ouc = gr.Number(value=0.0, label="Coste por operar")
+                        our = gr.Slider(0.01, 0.20, value=0.05, step=0.01, label="Tasa descuento")
+                        ouk = gr.Number(value=10000, label="Capital €")
+                        oub2 = gr.Button("Calibrar y calcular salida", variant="primary")
+                    mdou = gr.Markdown()
+                    tblou = gr.Dataframe(wrap=True)
+                    oub2.click(tab_ou_optimo, [oua, oub, oup, ouc, our, ouk], [tblou, mdou])
         with gr.Tab("🛠️ Análisis"):
             with gr.Tabs():
                 with gr.Tab("1 · Forecast"):
@@ -1748,7 +1862,7 @@ def build():
                         b8 = gr.Button("Analizar noticias", variant="primary")
                     md8 = gr.Markdown(); tb8 = gr.Dataframe(label="Titulares analizados", wrap=True)
                     b8.click(tab_sentiment, [t8, n8], [tb8, md8])
-                with gr.Tab("9 · Tamaño posición"):
+                with gr.Tab("9 · Tamaño"):
                     gr.Markdown("Cuántas acciones comprar arriesgando un % fijo. Da Entrada+Stop, "
                                 "o solo Ticker para stop automático por ATR.")
                     with gr.Row():
@@ -1773,7 +1887,7 @@ def build():
                         tbm1 = gr.Dataframe(label="Componentes Fear & Greed", wrap=True)
                         tbm2 = gr.Dataframe(label="Fundamentales", wrap=True)
                     bm.click(tab_mercado, [tm], [mdm, tbm1, tbm2])
-                with gr.Tab("🎯 Alpha (rigor)"):
+                with gr.Tab("🎯 Alpha"):
                     gr.Markdown("**¿Hay ventaja REAL?** Dirección a corto plazo con ML (LightGBM + features "
                                 "leak-free + Hurst, walk-forward purgado) + volatilidad GARCH. Mide con test de "
                                 "significancia si el modelo bate al azar. Tarda ~1-2 min (reentrena en cada corte).")
@@ -1844,7 +1958,7 @@ def build():
                     figdca = gr.Plot()
                     tbldca = gr.Dataframe(wrap=True)
                     bdca.click(tab_dca, [tlp, tdca, adca], [figdca, tbldca, mddca])
-                with gr.Tab("🗞️ Informe semanal"):
+                with gr.Tab("🗞️ Informe"):
                     gr.Markdown("**Tu resumen en un clic**: señales de tu watchlist guardada + "
                                 "riesgo de la cesta + titulares recientes → un Word en la raíz "
                                 "del proyecto. Tarda ~10-20 s. También por doble clic: Informe_Semanal.bat.")

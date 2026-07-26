@@ -253,7 +253,19 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** La prueba de honestidad. Te recuerda que esto mide, no promete milagros.
 
-### 📊 Backtest Sistema  `[Avanzado]`
+### 🧪 CPCV  `[Avanzado]`
+**Para qué sirve:** La validación más dura de todas: parte la historia en bloques y prueba la estrategia en MUCHAS combinaciones distintas fuera de muestra, con cortafuegos para que el futuro no se cuele.
+
+**Cómo se usa:** Escribe tu universo y pulsa Validar. Tarda 1-2 minutos.
+
+**Qué significa lo que ves:**
+- **PBO**: probabilidad de sobreajuste. Alto (>50%) = elegir 'la mejor configuración' del pasado NO funciona después.
+- **Sharpe ± margen de error**: si el intervalo cruza 0, no puedes afirmar que ganas.
+- **Deflated Sharpe**: descuenta el azar de haber probado muchas veces. Necesita >95% para creerse.
+
+**👉 Qué hago con esto:** Es el juez más severo. Si una idea sobrevive aquí, es seria; si no, mejor saberlo antes de arriesgar dinero.
+
+### 📊 Backtest sist.  `[Avanzado]`
 **Para qué sirve:** Prueba la estrategia completa sobre años pasados (con costes) y la compara con el índice.
 
 **Cómo se usa:** Escribe un universo de empresas y pulsa Backtestear.
@@ -337,6 +349,31 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 - Compara la relación 'fija' vs la 'que se adapta'. La que se adapta es más fiable.
 
 **👉 Qué hago con esto:** Si haces pares, usa esta versión: no se queda anclada al pasado.
+
+### 🎲 Opciones  `[Avanzado]`
+**Para qué sirve:** Valora una OPCIÓN (el derecho a comprar o vender algo a un precio fijado) con la fórmula Black-Scholes, y te da sus 'Griegas': a qué es sensible tu posición.
+
+**Cómo se usa:** Escribe un ticker de EEUU para ver la cadena real de opciones, o déjalo vacío y juega con strike/días/volatilidad para una opción teórica.
+
+**Qué significa lo que ves:**
+- **Delta**: cuánto gana la opción si el activo sube 1 € (y, aproximadamente, la probabilidad de acabar valiendo algo).
+- **Gamma**: cómo se acelera el Delta. Alto = la posición se mueve cada vez más rápido.
+- **Vega**: cuánto gana si sube la volatilidad. Comprar opciones es apostar a que habrá movimiento.
+- **Theta**: lo que te quita el reloj cada día. El comprador pierde solo con que pase el tiempo.
+
+**👉 Qué hago con esto:** Antes de tocar una opción, mira Theta: si es alta, el tiempo juega en tu contra. Es el único apartado que trata derivados; el resto de la app son acciones.
+
+### ⏳ OU óptimo  `[Avanzado]`
+**Para qué sirve:** Para pares (dos activos que van de la mano): calcula el 'muelle' que los une y te dice el momento EXACTO de cerrar, con matemáticas en vez de a ojo.
+
+**Cómo se usa:** Escribe dos activos (ej. KO y PEP, o EWA y EWC), tu capital y el coste de operar. Pulsa Calibrar.
+
+**Qué significa lo que ves:**
+- **θ (fuerza del muelle)** y **half-life**: cómo de rápido vuelve el spread a su sitio. Corto = tradeable.
+- **σ_eq**: cuánto se mueve el spread por puro azar. El stop se pone MÁS ALLÁ de eso.
+- **SALIDA ÓPTIMA**: el nivel donde compensa cerrar, descontando lo que cuesta operar. No es 'cerrar en la media': suele compensar esperar algo más.
+
+**👉 Qué hago con esto:** Si operas pares, usa este umbral en vez de decidir por intuición. Cuanto más caro sea operar, más lejos se pone la salida (la herramienta ya lo calcula).
 
 ### 📡 Entropía (lead-lag)  `[Avanzado]`
 **Para qué sirve:** Descubre qué activo MUEVE a cuál (quién manda y quién sigue), incluso de formas que la correlación no ve.

@@ -1358,7 +1358,7 @@ def _guia_secciones():
     """Lee guia_usuario.md y la parte en secciones (## titulo, cuerpo)."""
     f = HERE / "guia_usuario.md"
     if not f.exists():
-        return "## Guía no encontrada — regenera con: node app/build_manual.js", []
+        return "## Guía no encontrada — pulsa 🔄 Actualizar guía", []
     txt = f.read_text(encoding="utf-8")
     partes = txt.split("\n## ")
     intro = partes[0]
@@ -1367,6 +1367,80 @@ def _guia_secciones():
         lineas = p.split("\n", 1)
         secciones.append((lineas[0].strip(), lineas[1] if len(lineas) > 1 else ""))
     return intro, secciones
+
+
+def _tabs_del_codigo():
+    """Lee del propio dashboard.py las pestañas reales y su descripción.
+    Así la guía nunca puede 'no enterarse' de una pantalla nueva."""
+    import re
+    src = Path(__file__).read_text(encoding="utf-8")
+    fuera = {"🎯 Operar", "⚙️ Sistema algo", "🔬 Cuant avanzado", "🛠️ Análisis",
+             "📚 Contexto y riesgo", "📖 Guía"}
+    tabs = []
+    # buscar SOLO la cabecera y luego mirar hacia delante: si se consume el texto,
+    # las pestañas contiguas se pierden (pasó: detectaba 25 de 41).
+    for m in re.finditer(r'with gr\.Tab\("([^"]+)"\):', src):
+        nombre = m.group(1)
+        if nombre in fuera:
+            continue
+        bloque = src[m.end():m.end() + 900]
+        desc = ""
+        dm = re.search(r'gr\.Markdown\(\s*("(?:[^"\\]|\\.)*"(?:\s*"(?:[^"\\]|\\.)*")*)', bloque)
+        if dm:
+            try:
+                trozos = re.findall(r'"((?:[^"\\]|\\.)*)"', dm.group(1))
+                desc = " ".join(trozos).replace('\\"', '"').replace("**", "").strip()
+            except Exception:
+                desc = ""
+        tabs.append((nombre, desc[:400]))
+    return tabs
+
+
+def _guia_estado():
+    """Compara las pantallas reales con las documentadas. Devuelve (md_estado, nuevas)."""
+    _intro, secs = _guia_secciones()
+    documentadas = "\n".join(c for _t, c in secs)
+    reales = _tabs_del_codigo()
+    def _norm(s):
+        import re as _re
+        return _re.sub(r"[^a-z0-9]", "", s.lower())
+    doc_norm = _norm(documentadas)
+    nuevas = [(n, d) for n, d in reales if _norm(n)[:10] not in doc_norm]
+    if not reales:
+        return "", []
+    if not nuevas:
+        return (f"✅ **Guía al día** — las {len(reales)} pantallas del panel están documentadas.", [])
+    lista = ", ".join(n for n, _ in nuevas)
+    return (f"⚠️ **{len(nuevas)} pantalla(s) sin ficha manual**: {lista}. "
+            f"Abajo tienes su descripción automática; pulsa **🔄 Actualizar guía** para "
+            f"regenerar la versión completa.", nuevas)
+
+
+def tab_guia_refrescar():
+    """Regenera guia_usuario.md (si hay Node) y devuelve estado + fichas automáticas."""
+    import subprocess
+    msg = []
+    build = PROJ / "app" / "build_manual.js"
+    if build.exists():
+        try:
+            r = subprocess.run(["node", build.name], cwd=str(build.parent),
+                               capture_output=True, text=True, timeout=180)
+            msg.append("♻️ Guía regenerada desde la fuente." if r.returncode == 0
+                       else "⚠️ No se pudo regenerar (node devolvió error); muestro la guía guardada.")
+        except FileNotFoundError:
+            msg.append("ℹ️ Node no está instalado: no puedo regenerar el texto maestro, "
+                       "pero abajo verás igualmente las pantallas nuevas autodocumentadas.")
+        except Exception as e:
+            msg.append(f"⚠️ Regeneración no disponible ({str(e)[:60]}).")
+    estado, nuevas = _guia_estado()
+    msg.append(estado)
+    if nuevas:
+        msg.append("\n### 🆕 Pantallas nuevas (ficha automática)")
+        for n, d in nuevas:
+            msg.append(f"**{n}** — {d or 'sin descripción en el código.'}")
+    msg.append("\n> Tras regenerar, **reinicia el panel** (Lanzar_Dashboard.bat) para ver las "
+               "fichas completas en los desplegables.")
+    return "\n\n".join(x for x in msg if x)
 
 
 # ---- Watchlist única persistente (compartida por todas las pestañas) -------
@@ -2076,11 +2150,22 @@ def build():
                     binf.click(tab_informe_semanal, [], [mdinf])
         with gr.Tab("📖 Guía"):
             _intro, _secs = _guia_secciones()
+            _estado, _nuevas = _guia_estado()
             gr.Markdown(_intro)
+            with gr.Row():
+                gmd_estado = gr.Markdown(_estado)
+                gbtn = gr.Button("🔄 Actualizar guía", variant="secondary", scale=0)
+            if _nuevas:
+                with gr.Accordion("🆕 Pantallas nuevas (ficha automática)", open=True):
+                    gr.Markdown("\n\n".join(
+                        f"**{n}** — {d or 'sin descripción en el código.'}" for n, d in _nuevas))
             for _tit, _cuerpo in _secs:
                 with gr.Accordion(_tit, open=_tit.startswith("🚀")):
                     gr.Markdown(_cuerpo)
-            gr.Markdown("> Versión completa con capturas: **Manual_FinanzIA.docx** en la carpeta del proyecto.")
+            gr.Markdown("> Versión completa con capturas: **Manual_FinanzIA.docx** en la carpeta "
+                        "del proyecto. La guía se comprueba sola cada vez que abres el panel: si "
+                        "añades una pantalla y no está documentada, aparece aquí arriba.")
+            gbtn.click(tab_guia_refrescar, [], [gmd_estado])
         # guardar watchlist -> actualiza el fichero y los 11 campos que la usan
         wbtn.click(_wl_save, [wtxt], [wmd, t3, t4, tse, trk, tsy, tvb, tsb, tr, tal, tis, tf])
     return app

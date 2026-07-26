@@ -460,7 +460,22 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** La forma tranquila de invertir a años vista: crea, revisa 1 vez al mes, y no toques más. Mezcla bolsa con oro/bonos para diversificar.
 
-### 🗞️ Informe semanal  `[Básico]`
+### 🏛️ Lab carteras  `[Básico]`
+**Para qué sirve:** Compara TU cartera con las carteras más famosas de la historia (60/40, la Permanente de Browne, la All Weather de Dalio, Buffett 90/10, Bogleheads, Golden Butterfly) y te dice cómo habría aguantado el crash de 2008, el COVID y la inflación de 2022.
+
+**Cómo se usa:** Escribe tu cartera con el formato TICKER:peso (ej. `SPY:50, GLD:20, TLT:20, AGG:10`), elige histórico y rebalanceo, y pulsa Analizar.
+
+**Qué significa lo que ves:**
+- **Sortino**: como el Sharpe pero solo castiga las caídas (subir mucho no es 'riesgo').
+- **Omega**: cuántos euros ganas por cada euro que pierdes (>1 es bueno).
+- **Ulcer**: el 'dolor' — mide lo profundas Y lo largas que son las caídas.
+- **Calmar**: rentabilidad anual dividida por la peor caída.
+- **Contribución al riesgo**: qué activo pone realmente los sustos (¡no es lo mismo que su peso!).
+- **Captura alcista/bajista**: cuánto sigues al índice cuando sube y cuánto sufres cuando baja.
+
+**👉 Qué hago con esto:** Mira la tabla de crisis y pregúntate en serio: ¿habrías aguantado sin vender? Si la respuesta es no, tu cartera es demasiado agresiva para ti. Todo viene explicado en cristiano debajo de las tablas.
+
+### 🗞️ Informe  `[Básico]`
 **Para qué sirve:** Tu resumen de la semana en un clic: señales de tu watchlist + riesgo de la cesta + titulares, en un documento Word.
 
 **Cómo se usa:** Pulsa 'Generar informe ahora' (o doble clic en Informe_Semanal.bat). El Word aparece en la carpeta del proyecto.

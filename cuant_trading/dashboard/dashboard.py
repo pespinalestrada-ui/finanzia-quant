@@ -42,7 +42,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "hmm_regime", SUITE / "meta_labeling", SUITE / "rmt_clean",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
-          SUITE / "cpcv"]:
+          SUITE / "cpcv", SUITE / "portfolio_lab"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -1228,6 +1228,42 @@ def tab_validar_veredicto(txt, horizon, trials):
         return f"**Error:** {e}"
 
 
+def tab_lab_carteras(cartera, period, rebal, bench):
+    """Laboratorio de carteras: metricas avanzadas + leyendas + crisis, explicado."""
+    try:
+        import portfolio_lab as PL
+        mia = PL.parsear_cartera(cartera) if str(cartera).strip() else None
+        tabla, curvas = PL.comparar_legendarias(period, rebal, mia)
+        if tabla.empty:
+            return _err_fig("Sin datos"), pd.DataFrame(), pd.DataFrame(), "Sin datos suficientes."
+        cols = ["Cartera", "CAGR %", "Vol anual %", "Sharpe", "Sortino", "Omega", "Ulcer",
+                "Calmar", "Máx caída %", "Días en recuperar"]
+        cols = [c for c in cols if c in tabla.columns]
+        fig = PL._plot(curvas, "Tu cartera vs las leyendas" if mia else "Carteras de leyenda")
+        partes = [PL.LEYENDA_METRICAS]
+        crisis_df = pd.DataFrame()
+        if mia:
+            fila = tabla.iloc[0].to_dict()
+            partes.append("### 📊 Tu cartera, en cristiano\n" + PL.explicar_metricas(fila))
+            crisis_df = PL.prueba_crisis(mia, rebal)
+            partes.append("### 🔥 En las crisis reales\n" + PL.explicar_crisis(crisis_df))
+            contrib = PL.contribucion_riesgo(mia)
+            partes.append("### ⚖️ De dónde viene el riesgo\n" + PL.explicar_contribucion(contrib))
+            _c, rp, _u = PL.serie_cartera(mia, period=period, rebalanceo=rebal)
+            if rp is not None:
+                partes.append("### 📈 " + PL.explicar_captura(PL.captura(rp, bench, period), bench))
+            crisis_df = pd.concat([crisis_df, contrib.rename(columns={"Activo": "Crisis"})],
+                                  ignore_index=True) if not contrib.empty else crisis_df
+        else:
+            partes.append("> Escribe tu cartera arriba (formato `SPY:60, AGG:40`) para compararla "
+                          "con las leyendas y ver su comportamiento en las crisis.")
+        partes.append("> Todo es medición histórica con dividendos incluidos, **no** predicción. "
+                      "No es recomendación de inversión.")
+        return fig, tabla[cols], crisis_df, "\n\n".join(partes)
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_opciones(ticker, tipo, strike, dias, vol, tasa):
     """Black-Scholes-Merton + Griegas. Con ticker: cadena real; sin el: teorico."""
     try:
@@ -1424,6 +1460,17 @@ def build():
                     mdf = gr.Markdown()
                     tblf = gr.Dataframe(label="Ranking multi-factor", wrap=True)
                     bf.click(tab_factores, [tf], [tblf, mdf])
+                    gr.Markdown(
+                        "**Cómo leer esto:**\n"
+                        "- Los **z** son notas *comparadas con el resto del grupo*: **+** mejor que la "
+                        "media, **−** peor, **0** en la media (o sin dato).\n"
+                        "- **z_value**: está barata respecto a lo que gana · **z_momentum**: viene "
+                        "subiendo · **z_quality**: empresa sólida (gana bien, poca deuda) · "
+                        "**z_lowvol**: tranquila, sin sobresaltos.\n"
+                        "- **nota**: la mezcla ponderada de las cuatro. **señal**: tercio superior "
+                        "(COMPRAR), inferior (EVITAR) o en medio.\n\n"
+                        "> Es un ranking RELATIVO: el mejor de un grupo malo sigue siendo malo. "
+                        "Usa esto para preseleccionar y confirma en ★ Veredicto.")
                 with gr.Tab("★ Veredicto"):
                     gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + ADX + "
                                 "**consenso de 5 osciladores** + MACD + momentum + volumen (OBV) + señales "
@@ -1627,6 +1674,12 @@ def build():
                     mdmc2 = gr.Markdown()
                     figmc2 = gr.Plot()
                     bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
+                    gr.Markdown(
+                        "**Cómo leer el gráfico:** cada línea fina es un futuro posible; las gruesas "
+                        "son el escenario malo (P5), el típico (P50) y el bueno (P95).\n\n"
+                        "> Lo importante NO es la línea central, sino **cuánto se abre el abanico** y la "
+                        "**probabilidad de ruina**: un sistema con buena media pero que te arruina en el "
+                        "5% de los casos no es operable.")
                 with gr.Tab("📊 Backtest sist."):
                     gr.Markdown("**Backtest de la estrategia completa** sobre el histórico: compra el "
                                 "**top-N** por score del Veredicto, rebalancea, **resta costes**, y compara "
@@ -1923,6 +1976,17 @@ def build():
                         tblr = gr.Dataframe(label="VaR / CVaR / Drawdown", wrap=True)
                         corrr = gr.Dataframe(label="Correlación", wrap=True)
                     br.click(tab_riesgo, [tr, pr, cr], [figr, tblr, corrr])
+                    gr.Markdown(
+                        "**Cómo leer esto:**\n"
+                        "- **Vol anual**: cuánto se mueve cada valor al año. Más alto = más sustos.\n"
+                        "- **VaR 95% (1d)**: la pérdida de un día malo (se supera 1 de cada 20 días).\n"
+                        "- **CVaR 95%**: cuánto pierdes *de media* en esos días malos. Siempre peor que "
+                        "el VaR: es el golpe real cuando llega.\n"
+                        "- **Máx drawdown**: lo peor que habrías llegado a perder desde un máximo.\n"
+                        "- **Correlación**: 1 = se mueven igual (no diversificas), 0 = independientes, "
+                        "negativo = uno sube cuando el otro baja (la mejor protección).\n\n"
+                        "> Fíjate en que la fila CARTERA suele tener MENOS volatilidad que sus valores "
+                        "sueltos: eso es la diversificación funcionando.")
                 with gr.Tab("🔔 Alertas"):
                     gr.Markdown("**Vigilancia de watchlist**: RSI extremo, pico de volatilidad, "
                                 "movimiento brusco, cruce de SMA50, proximidad a máx/mín 52s.")
@@ -1949,6 +2013,26 @@ def build():
                     blp1.click(tab_cartera_lp_crear, [tlp, clp], [tbllp, mdlp])
                     blp2.click(tab_cartera_lp_revisar, [], [tbllp, mdlp])
                     blp3.click(tab_cartera_lp_aplicar, [], [tbllp, mdlp])
+                with gr.Tab("🏛️ Lab carteras"):
+                    gr.Markdown("**Compara tu cartera con las de leyenda** (60/40, Permanente de Browne, "
+                                "All Weather de Dalio, Buffett 90/10, Bogleheads, Golden Butterfly) con "
+                                "métricas que van más allá del Sharpe (Sortino, Omega, Ulcer, Calmar), "
+                                "mira cómo habría aguantado **2008, el COVID y 2022**, y descubre qué "
+                                "activo pone de verdad el riesgo. Todo explicado en cristiano.")
+                    with gr.Row():
+                        tlab = gr.Textbox(value="SPY:50, GLD:20, TLT:20, AGG:10",
+                                          label="Tu cartera (TICKER:peso, separados por coma)", scale=4)
+                        plab = gr.Dropdown(["10y", "15y", "20y"], value="15y", label="Histórico")
+                        rlab = gr.Dropdown(["mensual", "trimestral", "anual", "ninguno"],
+                                           value="mensual", label="Rebalanceo")
+                        blab = gr.Textbox(value="SPY", label="Índice de referencia", scale=1)
+                        bblab = gr.Button("Analizar cartera", variant="primary")
+                    figlab = gr.Plot()
+                    tbllab = gr.Dataframe(label="Métricas comparadas", wrap=True)
+                    tbl2lab = gr.Dataframe(label="Crisis y contribución al riesgo", wrap=True)
+                    mdlab = gr.Markdown()
+                    bblab.click(tab_lab_carteras, [tlab, plab, rlab, blab],
+                                [figlab, tbllab, tbl2lab, mdlab])
                     gr.Markdown("---\n**¿Aportar cada mes (DCA) o entrar de golpe?** Compara con datos reales.")
                     with gr.Row():
                         tdca = gr.Number(value=12000, label="Dinero total €")

@@ -1228,6 +1228,28 @@ def tab_validar_veredicto(txt, horizon, trials):
         return f"**Error:** {e}"
 
 
+def tab_cargar_cartera_lp():
+    """Lee cartera_lp.csv (acciones) y la convierte a pesos actuales para el Lab."""
+    try:
+        import rebalance as RB
+        if not RB.CSV.exists():
+            return "", "No hay cartera guardada. Créala primero en 🏦 Cartera LP."
+        cart = pd.read_csv(RB.CSV)
+        px = RB._precios_hoy(cart["Ticker"].tolist())
+        cart["Precio"] = cart["Ticker"].map(px)
+        cart = cart.dropna(subset=["Precio"])
+        cart["Valor"] = cart["Acciones"] * cart["Precio"]
+        total = float(cart["Valor"].sum())
+        if total <= 0:
+            return "", "Cartera sin valor (precios no disponibles)."
+        cart["Peso"] = cart["Valor"] / total * 100
+        txt = ", ".join(f"{r.Ticker}:{r.Peso:.1f}" for r in cart.itertuples())
+        return txt, (f"✅ Cargada tu cartera de 🏦 Cartera LP · valor actual **{total:,.0f} €** · "
+                     f"{len(cart)} activos. Pulsa **Analizar cartera**.")
+    except Exception as e:
+        return "", "**Error:** " + str(e)
+
+
 def tab_lab_carteras(cartera, period, rebal, bench):
     """Laboratorio de carteras: metricas avanzadas + leyendas + crisis, explicado."""
     try:
@@ -2031,6 +2053,9 @@ def build():
                     tbllab = gr.Dataframe(label="Métricas comparadas", wrap=True)
                     tbl2lab = gr.Dataframe(label="Crisis y contribución al riesgo", wrap=True)
                     mdlab = gr.Markdown()
+                    with gr.Row():
+                        bcarga = gr.Button("📥 Cargar mi cartera LP guardada", variant="secondary")
+                    bcarga.click(tab_cargar_cartera_lp, [], [tlab, mdlab])
                     bblab.click(tab_lab_carteras, [tlab, plab, rlab, blab],
                                 [figlab, tbllab, tbl2lab, mdlab])
                     gr.Markdown("---\n**¿Aportar cada mes (DCA) o entrar de golpe?** Compara con datos reales.")

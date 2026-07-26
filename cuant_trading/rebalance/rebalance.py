@@ -37,11 +37,19 @@ UMBRAL_DRIFT = 0.025          # solo ajustar si el peso se desvía >2.5 puntos
 
 
 def _precios_hoy(tickers):
+    """Último precio válido. yfinance a veces devuelve la última fila vacía (NaN):
+    sin el dropna, la cartera entera se quedaba sin valor."""
     out = {}
     for tk in tickers:
-        h = yf.Ticker(tk).history(period="5d", auto_adjust=True)
-        if not h.empty:
-            out[tk] = float(h["Close"].iloc[-1])
+        try:
+            h = yf.Ticker(tk).history(period="5d", auto_adjust=True)
+            if h.empty:
+                continue
+            c = h["Close"].astype(float).dropna()
+            if not c.empty:
+                out[tk] = float(c.iloc[-1])
+        except Exception:
+            continue
     return out
 
 

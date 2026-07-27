@@ -42,7 +42,7 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "hmm_regime", SUITE / "meta_labeling", SUITE / "rmt_clean",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
-          SUITE / "cpcv", SUITE / "portfolio_lab"]:
+          SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget"]:
     sys.path.insert(0, str(p))
 
 import yfinance as yf
@@ -1228,6 +1228,50 @@ def tab_validar_veredicto(txt, horizon, trials):
         return f"**Error:** {e}"
 
 
+def tab_voltarget(ticker, period, objetivo, metodo, max_exp, coste, banda, cash):
+    """Algoritmo de volatilidad objetivo: el indice con el riesgo controlado."""
+    try:
+        import voltarget as VT
+        df, meta = VT.backtest(ticker.strip().upper(), period, float(objetivo), metodo,
+                               float(max_exp), float(coste), float(banda), float(cash))
+        tabla = VT.comparar(df)
+        sig = VT.significancia(df)
+        cri = VT.crisis(ticker.strip().upper(), float(objetivo), metodo, float(max_exp),
+                        float(coste), float(banda), float(cash))
+        fig = VT._plot(df, meta)
+        md = ("### 🛞 " + meta["ticker"] + " · volatilidad objetivo " +
+              str(round(float(objetivo) * 100)) + "%\n\n" +
+              VT.explicar(tabla, meta, sig, cri) +
+              "\n\n**Cómo leer el gráfico:** arriba, tu curva (verde) contra comprar y "
+              "mantener (gris) en escala logarítmica; abajo, el **% invertido** en cada "
+              "momento — verás cómo se retira solo en las crisis.\n\n"
+              "> El algoritmo NO predice la dirección (eso no se puede). Solo ajusta "
+              "**cuánto** arriesgas según la tormenta prevista. No es recomendación.")
+        return fig, tabla, cri, md
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), pd.DataFrame(), "**Error:** " + str(e)
+
+
+def tab_voltarget_robustez(ticker, period, coste, banda, cash):
+    """¿Funciona con cualquier configuracion o solo con una afortunada?"""
+    try:
+        import voltarget as VT
+        df, res = VT.robustez(ticker.strip().upper(), period, float(coste),
+                              float(banda), float(cash))
+        if df.empty:
+            return pd.DataFrame(), "Sin datos suficientes."
+        md = ("**Barrido de robustez** (10 configuraciones, se muestran TODAS — quedarse "
+              "solo con la mejor sería engañarse):\n\n"
+              "- Mejor Sharpe que comprar y mantener en **" + str(res["mejor_sharpe"]) +
+              "/" + str(res["n"]) + "** configuraciones.\n"
+              "- Menos caída máxima en **" + str(res["menos_caida"]) + "/" + str(res["n"]) + "**.\n\n"
+              "> Si funcionara solo con una configuración concreta, sería sobreajuste. "
+              "Cuantas más casillas digan 'sí', más fiable es el efecto.")
+        return df, md
+    except Exception as e:
+        return pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_cargar_cartera_lp():
     """Lee cartera_lp.csv (acciones) y la convierte a pesos actuales para el Lab."""
     try:
@@ -1818,6 +1862,30 @@ def build():
                         bcp = gr.Button("Validar con CPCV", variant="primary")
                     mdcp = gr.Markdown()
                     bcp.click(tab_cpcv, [tcp, hcp, ncp, kcp], [mdcp])
+                with gr.Tab("🛞 Vol objetivo"):
+                    gr.Markdown("**El algoritmo del proyecto.** No predice hacia dónde va el mercado "
+                                "(eso ya medimos que no se puede): ajusta **cuánto** estás invertido "
+                                "según la volatilidad prevista. En calma, dentro; en tormenta, se "
+                                "retira solo. Costes de operar y rentabilidad del efectivo incluidos.")
+                    with gr.Row():
+                        tvt = gr.Textbox(value="SPY", label="Activo", scale=2)
+                        pvt = gr.Dropdown(["10y", "15y", "20y", "max"], value="20y", label="Histórico")
+                        ovt = gr.Slider(0.05, 0.25, value=0.12, step=0.01, label="Volatilidad objetivo")
+                        mvt = gr.Dropdown(["ewma", "realizada", "garch"], value="ewma", label="Método")
+                        xvt = gr.Slider(0.5, 2.0, value=1.0, step=0.1, label="Exposición máx (1 = sin apalancar)")
+                    with gr.Row():
+                        cvt = gr.Number(value=5.0, label="Coste (bps)")
+                        bvt = gr.Slider(0.02, 0.30, value=0.10, step=0.01, label="Banda (no tocar si el cambio es menor)")
+                        kvt = gr.Slider(0.0, 0.06, value=0.02, step=0.005, label="Rentabilidad del efectivo")
+                        bbvt = gr.Button("Probar algoritmo", variant="primary")
+                        brvt = gr.Button("🔬 Robustez", variant="secondary")
+                    figvt = gr.Plot()
+                    mdvt = gr.Markdown()
+                    tblvt = gr.Dataframe(label="Estrategia vs comprar y mantener", wrap=True)
+                    tbl2vt = gr.Dataframe(label="Crisis / robustez", wrap=True)
+                    bbvt.click(tab_voltarget, [tvt, pvt, ovt, mvt, xvt, cvt, bvt, kvt],
+                               [figvt, tblvt, tbl2vt, mdvt])
+                    brvt.click(tab_voltarget_robustez, [tvt, pvt, cvt, bvt, kvt], [tbl2vt, mdvt])
         with gr.Tab("🔬 Cuant avanzado"):
             with gr.Tabs():
                 with gr.Tab("🔗 Pairs"):

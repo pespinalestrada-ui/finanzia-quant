@@ -253,6 +253,19 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** La prueba de honestidad. Te recuerda que esto mide, no promete milagros.
 
+### 🛞 Vol objetivo  `[Intermedio]`
+**Para qué sirve:** EL ALGORITMO del proyecto. No intenta adivinar si el mercado sube o baja (eso ya medimos que no se puede): ajusta CUÁNTO estás invertido según la tormenta prevista. En calma, dentro; cuando la volatilidad se dispara, se retira solo y el resto queda en efectivo.
+
+**Cómo se usa:** Escribe un activo (SPY, QQQ, tu ETF...), elige la volatilidad que quieres soportar (12% es un buen punto de partida) y pulsa Probar algoritmo. El botón 🔬 Robustez comprueba si funciona con cualquier configuración o solo con una afortunada.
+
+**Qué significa lo que ves:**
+- **Qué hace hoy**: el % que deberías tener invertido ahora mismo.
+- La tabla compara el algoritmo contra comprar y mantener: fíjate sobre todo en la **peor caída** y el **Sharpe**.
+- **En las crisis**: cuánto habrías perdido en 2008, COVID y 2022 frente a estar siempre dentro.
+- El **coste de operar ya está descontado** de todos los números.
+
+**👉 Qué hago con esto:** Lo que busca no es ganar más, sino **ganar parecido pasando mucho menos miedo**. Si la peor caída baja a la mitad y el Sharpe sube, está haciendo su trabajo. Practícalo en paper antes de aplicarlo con dinero.
+
 ### 🧪 CPCV  `[Avanzado]`
 **Para qué sirve:** La validación más dura de todas: parte la historia en bloques y prueba la estrategia en MUCHAS combinaciones distintas fuera de muestra, con cortafuegos para que el futuro no se cuele.
 

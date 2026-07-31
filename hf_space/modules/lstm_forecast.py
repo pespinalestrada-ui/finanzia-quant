@@ -33,6 +33,12 @@ torch.manual_seed(42)
 np.random.seed(42)
 
 
+# paleta Nocturne (la misma de modules/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def descargar(ticker, period="3y"):
     h = yf.Ticker(ticker).history(period=period, auto_adjust=False)
     if h.empty:
@@ -150,9 +156,9 @@ def _plot(df, fechas, yhat, lo, hi, ticker):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     hist = df.iloc[-250:]
-    ax.plot(hist["ds"], hist["y"], color="black", lw=1.1, label="Histórico (1 año)")
-    ax.plot(fechas, yhat, color="tab:red", lw=1.5, label="LSTM forecast")
-    ax.fill_between(fechas, lo, hi, color="tab:red", alpha=0.15, label="Banda 80 %")
+    ax.plot(hist["ds"], hist["y"], color=_NEU, lw=1.1, label="Histórico (1 año)")
+    ax.plot(fechas, yhat, color=_ACC, lw=1.5, label="LSTM forecast")
+    ax.fill_between(fechas, lo, hi, color=_ACC, alpha=0.17, label="Banda 80 %")
     ax.set_title(f"{ticker.upper()} — Forecast LSTM ({len(yhat)} días hábiles)")
     ax.set_xlabel("Fecha"); ax.set_ylabel("Precio"); ax.legend(loc="upper left")
     fig.tight_layout()

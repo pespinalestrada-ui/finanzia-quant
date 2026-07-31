@@ -53,6 +53,12 @@ INTERVAL_WIDTH = 0.80             # banda 80 %
 # Datos
 # ---------------------------------------------------------------------------
 
+# paleta Nocturne (la misma de modules/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def descargar(ticker: str, period: str = "3y") -> pd.DataFrame:
     """Descarga histórico diario de Yahoo Finance. Devuelve df['ds','y']."""
     t = yf.Ticker(ticker)
@@ -197,11 +203,11 @@ def forecast(ticker: str, period: str = "3y"):
 def _plot(df, fcst, ticker, filas):
     fig, ax = plt.subplots(figsize=(11, 5))
     hist = df.iloc[-260:]
-    ax.plot(hist["ds"], hist["y"], color="black", linewidth=1.2, label="Histórico (1 año)")
-    ax.plot(fcst["ds"], fcst["yhat"], color="tab:blue", linewidth=1.5, label="Forecast")
+    ax.plot(hist["ds"], hist["y"], color=_NEU, linewidth=1.2, label="Histórico (1 año)")
+    ax.plot(fcst["ds"], fcst["yhat"], color=_ACC, linewidth=1.6, label="Forecast")
     ax.fill_between(fcst["ds"], fcst["yhat_lower"], fcst["yhat_upper"],
-                    color="tab:blue", alpha=0.18, label="Banda 80 %")
-    colores = {"30 días": "tab:green", "90 días": "tab:orange", "120 días": "tab:red"}
+                    color=_ACC, alpha=0.17, label="Banda 80 %")
+    colores = {"30 días": _UP, "90 días": _GOLD, "120 días": _ACC2}
     for f in filas:
         fecha = pd.to_datetime(f["Fecha objetivo"])
         ax.axvline(fecha, color=colores.get(f["Horizonte"], "gray"), linestyle="--", alpha=0.5)

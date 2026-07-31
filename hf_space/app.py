@@ -37,6 +37,11 @@ import importlib.util as _ilu
 AUTOGLUON_OK = _ilu.find_spec("autogluon") is not None
 NEURALPROPHET_OK = _ilu.find_spec("neuralprophet") is not None
 
+# tema Nocturne: al importar finanzia_charts se aplican las rcParams a TODAS
+# las figuras del Space (fondo oscuro, Inter, rejilla tenue, sin cajas)
+from finanzia_charts import (C, style, band, marker, zonas_rsi, msg_fig,
+                             colorbar, CMAP_CORR, CMAP_SEQ)
+
 import yfinance as yf
 import forecast_tool                       # app/forecast_tool.py
 import indicators as IND
@@ -60,8 +65,7 @@ def _dl(ticker, period="1y"):
 
 
 def _err_fig(msg):
-    f, ax = plt.subplots(figsize=(8, 2)); ax.text(0.5, 0.5, msg, ha="center", va="center", wrap=True)
-    ax.axis("off"); return f
+    return msg_fig(msg)
 
 
 # ---- 1. Forecast ----------------------------------------------------------
@@ -116,11 +120,20 @@ def tab_indicadores(ticker, period):
         tabla = pd.DataFrame(IND.señales_dict(df), columns=["Indicador", "Valor", "Señal"])
         d = df.iloc[-260:]
         fig, ax = plt.subplots(3, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios":[3,1,1]})
-        ax[0].plot(d["Date"], d["Close"], "k", lw=1); ax[0].plot(d["Date"], d["BB_up"], "b--", lw=.6, alpha=.6)
-        ax[0].plot(d["Date"], d["BB_lo"], "b--", lw=.6, alpha=.6); ax[0].plot(d["Date"], d["SMA50"], "tab:orange", lw=.8)
-        ax[0].plot(d["Date"], d["SMA200"], "tab:red", lw=.8); ax[0].set_title(f"{ticker.upper()} precio+Bollinger+SMA")
-        ax[1].plot(d["Date"], d["RSI"], "tab:purple", lw=1); ax[1].axhline(70,color="r",ls="--",lw=.5); ax[1].axhline(30,color="g",ls="--",lw=.5); ax[1].set_ylabel("RSI")
-        ax[2].bar(d["Date"], d["MACD_hist"], color="gray", width=1); ax[2].plot(d["Date"], d["MACD"], "b", lw=.7); ax[2].plot(d["Date"], d["MACD_sig"], "r", lw=.7); ax[2].set_ylabel("MACD")
+        ax[0].plot(d["Date"], d["Close"], color=C.text, lw=1.5, label="Cierre")
+        band(ax[0], d["Date"], d["BB_lo"], d["BB_up"], label="Bollinger 20·2σ", alpha=0.10)
+        ax[0].plot(d["Date"], d["SMA50"], color=C.gold, lw=1.2, label="SMA 50")
+        ax[0].plot(d["Date"], d["SMA200"], color=C.neutral_d, lw=1.2, label="SMA 200")
+        style(ax[0], titulo=f"{ticker.upper()} — precio + Bollinger + SMA",
+              kicker="PRECIO · BOLLINGER · SMA · RSI · MACD")
+        ax[1].plot(d["Date"], d["RSI"], color=C.acc_light, lw=1.3)
+        zonas_rsi(ax[1]); style(ax[1], ylabel="RSI 14", legend=False)
+        ax[2].bar(d["Date"], d["MACD_hist"], width=1, alpha=0.55,
+                  color=[C.up if v >= 0 else C.down for v in d["MACD_hist"]])
+        ax[2].plot(d["Date"], d["MACD"], color=C.acc, lw=1.3)
+        ax[2].plot(d["Date"], d["MACD_sig"], color=C.gold, lw=1.1, ls="--")
+        ax[2].axhline(0, color=C.grid, lw=0.8)
+        style(ax[2], ylabel="MACD 12·26·9", legend=False)
         fig.tight_layout()
         return fig, tabla
     except Exception as e:
@@ -168,9 +181,12 @@ def tab_backtest(ticker, strat, fast, slow, period):
                f"| Operaciones | {m['trades']} | 1 |\n\n"
                f"**{'BATE' if m['ret_total']>bh['ret_total'] else 'NO bate'} a buy&hold.**")
         fig, ax = plt.subplots(figsize=(11, 5))
-        ax.plot(h["Date"], es, lw=1.4, label=f"{strat.upper()} (x{es.iloc[-1]:.2f})")
-        ax.plot(h["Date"], eb, lw=1.1, alpha=.8, label=f"Buy&Hold (x{eb.iloc[-1]:.2f})")
-        ax.legend(); ax.set_title(f"{ticker.upper()} equity (1€)"); fig.tight_layout()
+        ax.plot(h["Date"], eb, color=C.neutral, lw=1.3, label=f"Buy&Hold (x{eb.iloc[-1]:.2f})")
+        ax.plot(h["Date"], es, color=C.acc, lw=2.0, label=f"{strat.upper()} (x{es.iloc[-1]:.2f})")
+        ax.axhline(1, color=C.neutral_d, ls="--", lw=1)
+        style(ax, titulo=f"{ticker.upper()} — equity de 1 €",
+              kicker=f"BACKTEST · {period} · COSTES 0,1% POR OPERACIÓN")
+        fig.tight_layout()
         return fig, txt
     except Exception as e:
         return _err_fig(f"Error: {e}"), f"**Error:** {e}"
@@ -188,14 +204,17 @@ def tab_corr(txt, period):
         px = pd.DataFrame(data).dropna()
         corr = px.pct_change().dropna().corr()
         fig, ax = plt.subplots(figsize=(1.1*len(corr)+2, 1.0*len(corr)+1.5))
-        im = ax.imshow(corr, cmap="RdYlGn_r", vmin=-1, vmax=1)
+        im = ax.imshow(corr, cmap=CMAP_CORR, vmin=-1, vmax=1)
         ax.set_xticks(range(len(corr))); ax.set_xticklabels(corr.columns, rotation=45, ha="right")
         ax.set_yticks(range(len(corr))); ax.set_yticklabels(corr.index)
         for i in range(len(corr)):
             for j in range(len(corr)):
                 ax.text(j, i, f"{corr.values[i,j]:.2f}", ha="center", va="center", fontsize=8,
-                        color="white" if abs(corr.values[i,j])>0.6 else "black")
-        plt.colorbar(im); ax.set_title(f"Correlación ({period})"); fig.tight_layout()
+                        color=C.bg if abs(corr.values[i,j]) > 0.55 else C.neutral)
+        colorbar(fig, im, ax)
+        style(ax, titulo="Diversificación: cuanto más verde, mejor cubre",
+              kicker=f"CORRELACIÓN DE RETORNOS DIARIOS · {period}", legend=False)
+        ax.grid(False); fig.tight_layout()
         return fig, corr.round(2).reset_index()
     except Exception as e:
         return _err_fig(f"Error: {e}"), pd.DataFrame()
@@ -226,10 +245,11 @@ def tab_cartera(txt, period, rf):
         W = rng.random((N,n)); W/=W.sum(axis=1,keepdims=True)
         R = W@mu.values; V = np.sqrt((W@cov.values*W).sum(axis=1)); S=(R-rf)/V
         fig, ax = plt.subplots(figsize=(10,6))
-        sc = ax.scatter(V*100, R*100, c=S, cmap="viridis", s=7, alpha=.5); plt.colorbar(sc, label="Sharpe")
+        sc = ax.scatter(V*100, R*100, c=S, cmap=CMAP_SEQ, s=7, alpha=.55)
+        colorbar(fig, sc, ax, label="Sharpe")
         rs,vs = perf(wsh); rm,vm = perf(wmv)
-        ax.scatter(vs*100, rs*100, marker="*", s=280, color="red", label="Máx Sharpe", zorder=5)
-        ax.scatter(vm*100, rm*100, marker="*", s=280, color="blue", label="Mín vol", zorder=5)
+        ax.scatter(vs*100, rs*100, marker="*", s=280, color=C.acc, label="Máx Sharpe", zorder=5)
+        ax.scatter(vm*100, rm*100, marker="*", s=280, color=C.gold, label="Mín volatilidad", zorder=5)
         ax.set_xlabel("Volatilidad anual %"); ax.set_ylabel("Retorno anual %"); ax.set_title("Frontera eficiente"); ax.legend()
         fig.tight_layout()
         return fig, txt_out
@@ -584,16 +604,40 @@ def tab_mercado(ticker):
         return f"**Error:** {e}", pd.DataFrame(), pd.DataFrame()
 
 
+def _topbar_datos():
+    """Datos REALES para la barra superior: si NYSE y BME están abiertos ahora
+    (hora UTC, que es la del contenedor del Space) y el último precio de AAPL.
+    Si algo falla se queda en '—' antes que inventar un número."""
+    from datetime import datetime, timezone
+    ahora = datetime.now(timezone.utc)              # el Space corre en UTC
+    habil = ahora.weekday() < 5
+    m = ahora.hour * 60 + ahora.minute
+    bme = habil and (7 * 60) <= m < (15 * 60 + 30)      # 09:00-17:30 CET
+    nyse = habil and (14 * 60 + 30) <= m < (21 * 60)    # 09:30-16:00 ET
+    d = {"mercado": "NYSE abierto" if nyse else "NYSE cerrado",
+         "mercado2": "BME abierto" if bme else "BME cerrado",
+         "abierto": nyse or bme, "cierre": "",
+         "ticker": "AAPL", "precio": "—", "cambio": "",
+         "capital": "Paper · sin dinero real"}
+    try:
+        c = _dl("AAPL", "5d")["Close"].astype(float).dropna()
+        d["precio"] = f"{c.iloc[-1]:,.2f}".replace(",", "·").replace(".", ",")
+        if len(c) > 1:
+            d["cambio"] = f"{(c.iloc[-1] / c.iloc[-2] - 1) * 100:+.2f}%".replace(".", ",")
+    except Exception:
+        pass                                   # sin red: se queda en '—'
+    return d
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
-    # head: bloquea el traductor automático de Chrome (rompe la reactividad de Gradio)
-    _head = '<meta name="google" content="notranslate"><script>document.documentElement.lang="es";</script>'
-    with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head) as app:
-        gr.Markdown("# FinanzIA — Mesa cuantitativa")
+    from finanzia_theme import HEAD as _head, THEME as _theme, CSS as _css, TOPBAR_HTML
+    with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head,
+                   theme=_theme, css=_css) as app:
+        gr.HTML(TOPBAR_HTML(**_topbar_datos()))
         gr.Markdown("Suite de trading algorítmico. Datos Yahoo Finance (retardo ~15 min). "
-                    "Análisis y educación — **no es recomendación de inversión**. "
-                    "⚠️ En este Space el 📒 Diario es efímero: se borra si el Space se reinicia.")
+                    "⚠️ En este Space el 📒 Diario es **efímero**: se borra si el Space se reinicia.")
         with gr.Tab("★ Veredicto"):
             gr.Markdown("**Análisis completo en un clic**: forecast + tendencia + ADX + "
                         "**consenso de 5 osciladores** + MACD + momentum + volumen (OBV) + señales "
@@ -608,7 +652,7 @@ def build():
                 sv = gr.Checkbox(value=False, label="Incluir sentimiento FinBERT (1ª vez +1 min)")
             mdv = gr.Markdown()
             tbv = gr.Dataframe(label="Desglose por pilar", wrap=True)
-            plv = gr.Plot(label="Forecast 30/90/120d")
+            plv = gr.Plot(show_label=False)
             bv.click(tab_veredicto, [tv, pv, sv, mv], [plv, tbv, mdv])
         with gr.Tab("1 · Forecast"):
             with gr.Row():
@@ -619,14 +663,14 @@ def build():
                             + (["AutoGluon (2 min, cuantiles)"] if AUTOGLUON_OK else []))
                 motor = gr.Dropdown(_motores, value="Prophet (rápido)", label="Motor")
                 b = gr.Button("Forecast", variant="primary")
-            pl = gr.Plot(); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()
+            pl = gr.Plot(show_label=False); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()
             b.click(tab_forecast, [t, p, motor], [pl, tb, md])
         with gr.Tab("2 · Indicadores"):
             with gr.Row():
                 t2 = gr.Textbox(value="AAPL", label="Ticker", scale=3)
                 p2 = gr.Dropdown(["6mo","1y","2y"], value="1y", label="Histórico")
                 b2 = gr.Button("Calcular", variant="primary")
-            pl2 = gr.Plot(); tb2 = gr.Dataframe(label="Señales")
+            pl2 = gr.Plot(show_label=False); tb2 = gr.Dataframe(label="Señales")
             b2.click(tab_indicadores, [t2, p2], [pl2, tb2])
         with gr.Tab("3 · Screener"):
             t3 = gr.Textbox(value="AAPL MSFT NVDA GOOGL SAB.MC BBVA.MC", label="Tickers (espacio/coma)")
@@ -643,14 +687,14 @@ def build():
                 fa = gr.Number(value=50, label="SMA rápida"); sl = gr.Number(value=200, label="SMA lenta")
                 p5 = gr.Dropdown(["2y","5y","10y"], value="5y", label="Histórico")
                 b5 = gr.Button("Backtest", variant="primary")
-            pl5 = gr.Plot(); md5 = gr.Markdown()
+            pl5 = gr.Plot(show_label=False); md5 = gr.Markdown()
             b5.click(tab_backtest, [t5, st, fa, sl, p5], [pl5, md5])
         with gr.Tab("6 · Correlación"):
             with gr.Row():
                 t6 = gr.Textbox(value="AAPL MSFT TLT GLD", label="Tickers", scale=3)
                 p6 = gr.Dropdown(["1y","2y","3y"], value="2y", label="Histórico")
                 b6 = gr.Button("Correlación", variant="primary")
-            pl6 = gr.Plot(); tb6 = gr.Dataframe(label="Matriz")
+            pl6 = gr.Plot(show_label=False); tb6 = gr.Dataframe(label="Matriz")
             b6.click(tab_corr, [t6, p6], [pl6, tb6])
         with gr.Tab("7 · Cartera"):
             with gr.Row():
@@ -658,7 +702,7 @@ def build():
                 p7 = gr.Dropdown(["2y","3y","5y"], value="3y", label="Histórico")
                 rf = gr.Number(value=0.0, label="Tasa libre riesgo (0.03=3%)")
                 b7 = gr.Button("Optimizar", variant="primary")
-            pl7 = gr.Plot(); md7 = gr.Markdown()
+            pl7 = gr.Plot(show_label=False); md7 = gr.Markdown()
             b7.click(tab_cartera, [t7, p7, rf], [pl7, md7])
         with gr.Tab("8 · Sentimiento"):
             gr.Markdown("Noticias del ticker analizadas con **FinBERT** + entidades. "

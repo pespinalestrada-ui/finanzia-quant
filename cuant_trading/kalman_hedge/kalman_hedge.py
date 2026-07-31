@@ -32,6 +32,12 @@ import pandas as pd
 import yfinance as yf
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def _serie(ticker, period):
     h = yf.Ticker(ticker).history(period=period, auto_adjust=True)
     if h.empty:
@@ -92,13 +98,13 @@ def _plot(res):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
-    ax1.plot(res["fechas"], res["betas"], color="tab:blue", lw=1.2, label="β dinámico (Kalman)")
-    ax1.axhline(res["beta_ols"], color="gray", ls="--", lw=1, label=f"β estático OLS = {res['beta_ols']:.2f}")
+    ax1.plot(res["fechas"], res["betas"], color=_ACC, lw=1.4, label="β dinámico (Kalman)")
+    ax1.axhline(res["beta_ols"], color=_NEU, ls="--", lw=1, label=f"β estático OLS = {res['beta_ols']:.2f}")
     ax1.set_ylabel("Hedge ratio β"); ax1.legend(loc="best")
     ax1.set_title(f"{res['a']} / {res['b']} · hedge ratio dinámico vs estático")
     z = (res["spread"] - res["mu"]) / res["sd"]
-    ax2.plot(res["fechas"], z, color="tab:purple", lw=1.0)
-    for lvl, c in [(2, "tab:red"), (-2, "tab:green"), (0, "gray")]:
+    ax2.plot(res["fechas"], z, color=_ACC2, lw=1.2)
+    for lvl, c in [(2, _DOWN), (-2, _UP), (0, _DIM)]:
         ax2.axhline(lvl, color=c, ls="--", lw=0.8)
     ax2.set_ylabel("z-score del spread"); ax2.set_xlabel("Fecha")
     fig.tight_layout()

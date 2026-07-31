@@ -34,6 +34,12 @@ from scipy.special import logsumexp
 np.random.seed(42)
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def _log_gauss_diag(X, mean, var):
     """log N(x; mean, diag(var)) por fila. X (T,d), mean (d,), var (d,)."""
     var = np.maximum(var, 1e-6)
@@ -169,8 +175,8 @@ def _plot(res):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     c = res["precio"].reindex(res["fechas"])
-    cols = {"🟢 Alcista/calma": "tab:green", "🔴 Alta volatilidad/estrés": "tab:red",
-            "🟡 Bajista/lateral": "tab:orange"}
+    cols = {"🟢 Alcista/calma": _UP, "🔴 Alta volatilidad/estrés": _DOWN,
+            "🟡 Bajista/lateral": _GOLD}
     for k, nom in res["nombres"].items():
         m = res["path"] == k
         ax.scatter(np.array(res["fechas"])[m], c.values[m], s=4,

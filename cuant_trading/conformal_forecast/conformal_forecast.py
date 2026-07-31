@@ -38,6 +38,12 @@ from prophet import Prophet
 HORIZONS = (30, 90, 120)
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def descargar(ticker, period="5y"):
     h = yf.Ticker(ticker).history(period=period, auto_adjust=False)
     if h.empty:
@@ -174,11 +180,11 @@ def _plot(df, fc, banda, ticker, alpha):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     hist = df.iloc[-250:]
-    ax.plot(hist["ds"], hist["y"], color="black", lw=1.1, label="Histórico (1 año)")
-    ax.plot(pd.to_datetime(fc["ds"]), fc["yhat"], color="tab:blue", lw=1.3, label="Prophet (punto)")
+    ax.plot(hist["ds"], hist["y"], color=_NEU, lw=1.1, label="Histórico (1 año)")
+    ax.plot(pd.to_datetime(fc["ds"]), fc["yhat"], color=_ACC, lw=1.3, label="Prophet (punto)")
     for h, (fecha, yhat_h, lo, hi) in banda.items():
         ax.errorbar(pd.Timestamp(fecha), yhat_h, yerr=[[yhat_h - lo], [hi - yhat_h]],
-                    fmt="o", color="tab:red", capsize=5, lw=1.8,
+                    fmt="o", color=_GOLD, capsize=5, lw=1.8,
                     label=f"Banda conformal {int((1-alpha)*100)}%" if h == min(banda) else None)
     ax.set_title(f"{ticker.upper()} — Forecast con banda CALIBRADA (split conformal)")
     ax.set_xlabel("Fecha"); ax.set_ylabel("Precio"); ax.legend(loc="upper left")

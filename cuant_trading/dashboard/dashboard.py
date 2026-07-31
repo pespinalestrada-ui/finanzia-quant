@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
 SUITE = HERE.parent                       # cuant_trading/
 PROJ = SUITE.parent                       # raíz del proyecto
-for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
+for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "backtester", SUITE / "correlation", SUITE / "portfolio_optimizer",
           SUITE / "signal_scanner", SUITE / "sentiment", SUITE / "position_sizer",
           SUITE / "journal", SUITE / "autogluon_forecast", SUITE / "market_context",
@@ -44,6 +44,11 @@ for p in [PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget"]:
     sys.path.insert(0, str(p))
+
+# tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
+# (fondo oscuro, Inter, rejilla tenue, sin cajas). `C` es la paleta compartida.
+from finanzia_charts import (C, style, band, marker, zonas_rsi, msg_fig,
+                             colorbar, CMAP_CORR, CMAP_SEQ)
 
 import yfinance as yf
 import forecast_tool                       # app/forecast_tool.py
@@ -78,8 +83,7 @@ def _dl(ticker, period="1y", adjust=False):
 
 
 def _err_fig(msg):
-    f, ax = plt.subplots(figsize=(8, 2)); ax.text(0.5, 0.5, msg, ha="center", va="center", wrap=True)
-    ax.axis("off"); return f
+    return msg_fig(msg)
 
 
 # ---- 1. Forecast ----------------------------------------------------------
@@ -134,11 +138,20 @@ def tab_indicadores(ticker, period):
         tabla = pd.DataFrame(IND.señales_dict(df), columns=["Indicador", "Valor", "Señal"])
         d = df.iloc[-260:]
         fig, ax = plt.subplots(3, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios":[3,1,1]})
-        ax[0].plot(d["Date"], d["Close"], "k", lw=1); ax[0].plot(d["Date"], d["BB_up"], "b--", lw=.6, alpha=.6)
-        ax[0].plot(d["Date"], d["BB_lo"], "b--", lw=.6, alpha=.6); ax[0].plot(d["Date"], d["SMA50"], "tab:orange", lw=.8)
-        ax[0].plot(d["Date"], d["SMA200"], "tab:red", lw=.8); ax[0].set_title(f"{ticker.upper()} precio+Bollinger+SMA")
-        ax[1].plot(d["Date"], d["RSI"], "tab:purple", lw=1); ax[1].axhline(70,color="r",ls="--",lw=.5); ax[1].axhline(30,color="g",ls="--",lw=.5); ax[1].set_ylabel("RSI")
-        ax[2].bar(d["Date"], d["MACD_hist"], color="gray", width=1); ax[2].plot(d["Date"], d["MACD"], "b", lw=.7); ax[2].plot(d["Date"], d["MACD_sig"], "r", lw=.7); ax[2].set_ylabel("MACD")
+        ax[0].plot(d["Date"], d["Close"], color=C.text, lw=1.5, label="Cierre")
+        band(ax[0], d["Date"], d["BB_lo"], d["BB_up"], label="Bollinger 20·2σ", alpha=0.10)
+        ax[0].plot(d["Date"], d["SMA50"], color=C.gold, lw=1.2, label="SMA 50")
+        ax[0].plot(d["Date"], d["SMA200"], color=C.neutral_d, lw=1.2, label="SMA 200")
+        style(ax[0], titulo=f"{ticker.upper()} — precio + Bollinger + SMA",
+              kicker="PRECIO · BOLLINGER · SMA · RSI · MACD")
+        ax[1].plot(d["Date"], d["RSI"], color=C.acc_light, lw=1.3)
+        zonas_rsi(ax[1]); style(ax[1], ylabel="RSI 14", legend=False)
+        ax[2].bar(d["Date"], d["MACD_hist"], width=1, alpha=0.55,
+                  color=[C.up if v >= 0 else C.down for v in d["MACD_hist"]])
+        ax[2].plot(d["Date"], d["MACD"], color=C.acc, lw=1.3)
+        ax[2].plot(d["Date"], d["MACD_sig"], color=C.gold, lw=1.1, ls="--")
+        ax[2].axhline(0, color=C.grid, lw=0.8)
+        style(ax[2], ylabel="MACD 12·26·9", legend=False)
         fig.tight_layout()
         return fig, tabla
     except Exception as e:
@@ -186,9 +199,12 @@ def tab_backtest(ticker, strat, fast, slow, period):
                f"| Operaciones | {m['trades']} | 1 |\n\n"
                f"**{'BATE' if m['ret_total']>bh['ret_total'] else 'NO bate'} a buy&hold.**")
         fig, ax = plt.subplots(figsize=(11, 5))
-        ax.plot(h["Date"], es, lw=1.4, label=f"{strat.upper()} (x{es.iloc[-1]:.2f})")
-        ax.plot(h["Date"], eb, lw=1.1, alpha=.8, label=f"Buy&Hold (x{eb.iloc[-1]:.2f})")
-        ax.legend(); ax.set_title(f"{ticker.upper()} equity (1€)"); fig.tight_layout()
+        ax.plot(h["Date"], eb, color=C.neutral, lw=1.3, label=f"Buy&Hold (x{eb.iloc[-1]:.2f})")
+        ax.plot(h["Date"], es, color=C.acc, lw=2.0, label=f"{strat.upper()} (x{es.iloc[-1]:.2f})")
+        ax.axhline(1, color=C.neutral_d, ls="--", lw=1)
+        style(ax, titulo=f"{ticker.upper()} — equity de 1 €",
+              kicker=f"BACKTEST · {period} · COSTES 0,1% POR OPERACIÓN")
+        fig.tight_layout()
         return fig, txt
     except Exception as e:
         return _err_fig(f"Error: {e}"), f"**Error:** {e}"
@@ -206,14 +222,17 @@ def tab_corr(txt, period):
         px = pd.DataFrame(data).dropna()
         corr = px.pct_change().dropna().corr()
         fig, ax = plt.subplots(figsize=(1.1*len(corr)+2, 1.0*len(corr)+1.5))
-        im = ax.imshow(corr, cmap="RdYlGn_r", vmin=-1, vmax=1)
+        im = ax.imshow(corr, cmap=CMAP_CORR, vmin=-1, vmax=1)
         ax.set_xticks(range(len(corr))); ax.set_xticklabels(corr.columns, rotation=45, ha="right")
         ax.set_yticks(range(len(corr))); ax.set_yticklabels(corr.index)
         for i in range(len(corr)):
             for j in range(len(corr)):
                 ax.text(j, i, f"{corr.values[i,j]:.2f}", ha="center", va="center", fontsize=8,
-                        color="white" if abs(corr.values[i,j])>0.6 else "black")
-        plt.colorbar(im); ax.set_title(f"Correlación ({period})"); fig.tight_layout()
+                        color=C.bg if abs(corr.values[i,j]) > 0.55 else C.neutral)
+        colorbar(fig, im, ax)
+        style(ax, titulo="Diversificación: cuanto más verde, mejor cubre",
+              kicker=f"CORRELACIÓN DE RETORNOS DIARIOS · {period}", legend=False)
+        ax.grid(False); fig.tight_layout()
         return fig, corr.round(2).reset_index()
     except Exception as e:
         return _err_fig(f"Error: {e}"), pd.DataFrame()
@@ -244,11 +263,15 @@ def tab_cartera(txt, period, rf):
         W = rng.random((N,n)); W/=W.sum(axis=1,keepdims=True)
         R = W@mu.values; V = np.sqrt((W@cov.values*W).sum(axis=1)); S=(R-rf)/V
         fig, ax = plt.subplots(figsize=(10,6))
-        sc = ax.scatter(V*100, R*100, c=S, cmap="viridis", s=7, alpha=.5); plt.colorbar(sc, label="Sharpe")
+        sc = ax.scatter(V*100, R*100, c=S, cmap=CMAP_SEQ, s=7, alpha=.55)
+        colorbar(fig, sc, ax, label="Sharpe")
         rs,vs = perf(wsh); rm,vm = perf(wmv)
-        ax.scatter(vs*100, rs*100, marker="*", s=280, color="red", label="Máx Sharpe", zorder=5)
-        ax.scatter(vm*100, rm*100, marker="*", s=280, color="blue", label="Mín vol", zorder=5)
-        ax.set_xlabel("Volatilidad anual %"); ax.set_ylabel("Retorno anual %"); ax.set_title("Frontera eficiente"); ax.legend()
+        ax.scatter(vs*100, rs*100, marker="*", s=280, color=C.acc, label="Máx Sharpe", zorder=5)
+        ax.scatter(vm*100, rm*100, marker="*", s=280, color=C.gold, label="Mín volatilidad", zorder=5)
+        style(ax, titulo="Frontera eficiente — retorno por unidad de riesgo",
+              kicker="MARKOWITZ · 3.000 CARTERAS ALEATORIAS",
+              xlabel="Volatilidad anual →", ylabel="↑ Retorno anual")
+        ax.grid(True, axis="both", color=C.grid_soft, lw=0.8)
         fig.tight_layout()
         return fig, txt_out
     except Exception as e:
@@ -697,9 +720,13 @@ def tab_conformal(ticker, period):
         import conformal_forecast as CF
         fig, tabla, meta = CF.forecast(ticker.strip().upper(), period=period, n_origenes=25)
         cob = meta.get("cobertura_media")
+        # con históricos cortos no hay errores suficientes para medir la cobertura:
+        # se dice, no se inventa un número ni se rompe la pestaña
+        cob_txt = (f"**cobertura real medida ≈ {cob:.0f}%**" if cob is not None else
+                   "**cobertura no medible** con este histórico (usa 5y o más)")
         md = (f"### {ticker.upper()} — banda {meta['objetivo']}% CALIBRADA (split conformal)\n"
               f"Precio {meta['precio_actual']:.3f} · {meta['n']} sesiones · "
-              f"**cobertura real medida ≈ {cob:.0f}%** (objetivo {meta['objetivo']}%).\n\n"
+              f"{cob_txt} (objetivo {meta['objetivo']}%).\n\n"
               f"> La banda se calibra con los errores reales del walk-forward y se MIDE su "
               f"cobertura. Arregla la banda de Prophet, que solo cubría 14-29% real. "
               f"No es recomendación.")
@@ -1511,75 +1538,44 @@ def _wl_save(txt):
             *([limpio] * 11))
 
 
+def _topbar_datos():
+    """Datos REALES para la barra superior: si los mercados están abiertos ahora
+    y el último precio del primer valor de la watchlist. Si algo falla, se queda
+    en '—' antes que inventar un número."""
+    from datetime import datetime
+    ahora = datetime.now()                     # hora local (Madrid)
+    habil = ahora.weekday() < 5
+    m = ahora.hour * 60 + ahora.minute
+    bme = habil and (9 * 60) <= m < (17 * 60 + 30)
+    nyse = habil and (15 * 60 + 30) <= m < (22 * 60)
+    d = {"mercado": "NYSE abierto" if nyse else "NYSE cerrado",
+         "mercado2": "BME abierto" if bme else "BME cerrado",
+         "abierto": nyse or bme, "cierre": "",
+         "ticker": "—", "precio": "—", "cambio": "",
+         "capital": "Paper · sin dinero real"}
+    try:
+        tk = _wl_load().split(",")[0].strip().upper()
+        c = _dl(tk, "5d")["Close"].astype(float).dropna()
+        d["ticker"] = tk
+        d["precio"] = f"{c.iloc[-1]:,.2f}".replace(",", "·").replace(".", ",")
+        if len(c) > 1:
+            d["cambio"] = f"{(c.iloc[-1] / c.iloc[-2] - 1) * 100:+.2f}%".replace(".", ",")
+    except Exception:
+        pass                                   # sin red o ticker raro: se queda en '—'
+    return d
+
+
 # ---- UI -------------------------------------------------------------------
 def build():
     import gradio as gr
-    # head: bloquea el traductor automático de Chrome (rompe la reactividad de Gradio)
-    _head = '<meta name="google" content="notranslate"><script>document.documentElement.lang="es";</script>'
-    # tema corporativo (un solo acento desaturado, tipografía con carácter);
-    # si la API de temas cambiara, cae al tema por defecto sin romperse
-    try:
-        _theme = gr.themes.Soft(
-            primary_hue="teal", secondary_hue="slate", neutral_hue="slate",
-            font=[gr.themes.GoogleFont("Outfit"), "Segoe UI", "Arial", "sans-serif"],
-            font_mono=[gr.themes.GoogleFont("JetBrains Mono"), "Consolas", "monospace"],
-        )
-    except Exception:
-        try:
-            _theme = gr.themes.Soft(primary_hue="teal", secondary_hue="slate", neutral_hue="slate")
-        except Exception:
-            _theme = None
-    _css = """
-    :root { --acc: #0d9488; --acc-soft: rgba(13,148,136,.14); }
-    .gradio-container {max-width: 1560px !important; margin: 0 auto !important;}
-
-    /* cabecera corporativa: navy profundo, filete de acento, sin degradado chillón */
-    #banner {position: relative; background: #0b1220; border: 1px solid rgba(148,163,184,.14);
-             border-top: 3px solid var(--acc); border-radius: 12px;
-             padding: 20px 28px 16px; margin-bottom: 12px;
-             box-shadow: 0 10px 30px -18px rgba(2,6,23,.55);}
-    #banner .kicker {font-size: .72rem; letter-spacing: .22em; text-transform: uppercase;
-             color: #5eead4; font-weight: 600; margin: 0 0 2px 0;}
-    #banner h1 {margin: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em;
-             line-height: 1.1; color: #f8fafc;}
-    #banner p {margin: 6px 0 0 0; font-size: .88rem; color: #94a3b8;}
-    #banner .disclaimer {position: absolute; right: 28px; top: 22px; text-align: right;
-             font-size: .72rem; color: #64748b; max-width: 300px; line-height: 1.35;}
-    @media (max-width: 900px){ #banner .disclaimer {display:none;} }
-
-    /* pestañas: subrayado de acento en la activa (sobrio, tipo terminal) */
-    div[role='tablist'] {gap: 4px; border-bottom: 1px solid rgba(148,163,184,.18);}
-    div[role='tablist'] > button[role='tab'] {font-weight: 600; font-size: .95rem;
-             padding: 9px 14px; border-radius: 8px 8px 0 0;
-             border-bottom: 2px solid transparent; transition: background .18s, border-color .18s;}
-    div[role='tablist'] > button[role='tab']:hover {background: var(--acc-soft);}
-    div[role='tablist'] > button[role='tab'].selected {border-bottom: 2px solid var(--acc);
-             background: var(--acc-soft);}
-
-    /* botones: vivos al tacto */
-    button.primary, button.secondary {border-radius: 9px !important; font-weight: 600;
-             transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;}
-    button.primary:hover {transform: translateY(-1px);
-             box-shadow: 0 8px 20px -10px rgba(13,148,136,.55); filter: brightness(1.05);}
-    button.primary:active, button.secondary:active {transform: scale(.98);}
-    button:focus-visible {outline: 2px solid var(--acc); outline-offset: 2px;}
-
-    /* datos: números tabulares (columnas que alinean), filas con hover */
-    table {font-size: .88rem; font-variant-numeric: tabular-nums;}
-    tbody tr {transition: background .12s;}
-    tbody tr:hover {background: var(--acc-soft);}
-
-    .prose h1, .prose h2 {letter-spacing: -0.015em;}
-    footer {display: none !important;}
-    """
+    # tema Nocturne: HEAD (bloquea el traductor de Chrome + Inter), THEME (tokens
+    # de Gradio) y CSS viven en finanzia_theme.py; ahí está la paleta completa.
+    from finanzia_theme import HEAD as _head, THEME as _theme, CSS as _css, TOPBAR_HTML
     with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head,
                    theme=_theme, css=_css) as app:
-        gr.HTML("""<div id="banner">
-            <p class="kicker">Mesa cuantitativa</p>
-            <h1>FinanzIA</h1>
-            <p>Analiza &middot; Valida &middot; Practica en paper &middot; Mide &nbsp;—&nbsp; Datos Yahoo Finance / Alpaca IEX</p>
-            <div class="disclaimer">Herramienta de análisis y educación.<br>No es recomendación de inversión.</div>
-        </div>""")
+        # barra superior de 46 px: marca, estado de mercado, ticker, capital y
+        # el disclaimer (sustituye al banner navy de 100 px)
+        gr.HTML(TOPBAR_HTML(**_topbar_datos()))
         WL = _wl_load()
         with gr.Accordion("💾 Mi watchlist (compartida por todas las pestañas)", open=False):
             with gr.Row():
@@ -1627,7 +1623,7 @@ def build():
                         mv = gr.Checkbox(value=False, label="Consenso multi-modelo (informativo, +2 min)")
                     mdv = gr.Markdown()
                     tbv = gr.Dataframe(label="Detalle técnico (opcional)", wrap=True)
-                    plv = gr.Plot(label="Forecast 30/90/120d")
+                    plv = gr.Plot(show_label=False)
                     bv.click(tab_veredicto, [tv, pv, sv, mv, cv, rv], [plv, tbv, mdv])
                 with gr.Tab("🪙 Veredicto Cripto"):
                     gr.Markdown("**Veredicto para criptomonedas** (BTC-USD, ETH-EUR, SOL-USD…). "
@@ -1645,7 +1641,7 @@ def build():
                         mvc = gr.Checkbox(value=False, label="Consenso multi-modelo (informativo, +2 min)")
                     mdvc = gr.Markdown()
                     tbvc = gr.Dataframe(label="Detalle técnico (opcional)", wrap=True)
-                    plvc = gr.Plot(label="Forecast cripto 30/90/120d")
+                    plvc = gr.Plot(show_label=False)
                     bvc.click(tab_veredicto_cripto, [tvc, pvc, svc, mvc, cvc, rvc], [plvc, tbvc, mdvc])
                 with gr.Tab("⏱️ Intradía"):
                     gr.Markdown("**Intradía (desarrollo, sin arriesgar)**: VWAP + rango de apertura + "
@@ -1665,7 +1661,7 @@ def build():
                         bi1 = gr.Button("📷 Snapshot yfinance (~15 min retraso)", variant="secondary")
                         bi2 = gr.Button("🧪 Backtest ORB con costes", variant="secondary")
                     mdi = gr.Markdown()
-                    figi = gr.Plot()
+                    figi = gr.Plot(show_label=False)
                     tbli = gr.Dataframe(wrap=True)
                     bsem.click(tab_intraday_semaforo, [ti, ori], [figi, tbli, mdi])
                     bi0.click(tab_intraday_live, [ti, ori], [figi, tbli, mdi])
@@ -1788,7 +1784,7 @@ def build():
                         bpf_t = gr.Textbox(value="SPY", label="Benchmark", scale=2)
                         bpf = gr.Button("Medir rendimiento", variant="primary")
                     mdpf = gr.Markdown()
-                    figpf = gr.Plot()
+                    figpf = gr.Plot(show_label=False)
                     bpf.click(tab_rendimiento, [cpf, bpf_t], [figpf, mdpf])
                 with gr.Tab("🎲 Monte Carlo"):
                     gr.Markdown("**El abanico de lo posible** (no predicción). **Precio**: miles de "
@@ -1801,7 +1797,7 @@ def build():
                         emc = gr.Dropdown(["bootstrap", "gbm"], value="bootstrap", label="Método")
                         bmc1 = gr.Button("Simular precio", variant="primary")
                     mdmc1 = gr.Markdown()
-                    figmc1 = gr.Plot()
+                    figmc1 = gr.Plot(show_label=False)
                     bmc1.click(tab_mc_precio, [tmc, hmc, emc], [figmc1, mdmc1])
                     gr.Markdown("---\n#### Monte Carlo del SISTEMA (robustez)")
                     with gr.Row():
@@ -1812,7 +1808,7 @@ def build():
                         dmc = gr.Checkbox(value=False, label="Usar mi diario real")
                         bmc2 = gr.Button("Simular sistema", variant="primary")
                     mdmc2 = gr.Markdown()
-                    figmc2 = gr.Plot()
+                    figmc2 = gr.Plot(show_label=False)
                     bmc2.click(tab_mc_sistema, [wmc, pmc, rmc, nmc, dmc], [figmc2, mdmc2])
                     gr.Markdown(
                         "**Cómo leer el gráfico:** cada línea fina es un futuro posible; las gruesas "
@@ -1833,7 +1829,7 @@ def build():
                         psb = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
                         bsb = gr.Button("Backtestear", variant="primary")
                     mdsb = gr.Markdown()
-                    figsb = gr.Plot()
+                    figsb = gr.Plot(show_label=False)
                     bsb.click(tab_system_backtest, [tsb, nsb, rsb, csb, psb], [figsb, mdsb])
                 with gr.Tab("🔬 Validar"):
                     gr.Markdown("**¿El Veredicto predice de verdad?** Backtest honesto del score técnico "
@@ -1879,7 +1875,7 @@ def build():
                         kvt = gr.Slider(0.0, 0.06, value=0.02, step=0.005, label="Rentabilidad del efectivo")
                         bbvt = gr.Button("Probar algoritmo", variant="primary")
                         brvt = gr.Button("🔬 Robustez", variant="secondary")
-                    figvt = gr.Plot()
+                    figvt = gr.Plot(show_label=False)
                     mdvt = gr.Markdown()
                     tblvt = gr.Dataframe(label="Estrategia vs comprar y mantener", wrap=True)
                     tbl2vt = gr.Dataframe(label="Crisis / robustez", wrap=True)
@@ -1935,7 +1931,7 @@ def build():
                         phm = gr.Dropdown(["5y", "8y", "10y", "max"], value="8y", label="Histórico")
                         bhm = gr.Button("Detectar régimen", variant="primary")
                     mdhm = gr.Markdown()
-                    fighm = gr.Plot()
+                    fighm = gr.Plot(show_label=False)
                     bhm.click(tab_hmm, [thm, nhm, phm], [fighm, mdhm])
                 with gr.Tab("🎯 Meta-lab"):
                     gr.Markdown("**¿Actuar o no sobre la señal?** Meta-labeling (López de Prado): un 2º "
@@ -1959,7 +1955,7 @@ def build():
                         prm = gr.Dropdown(["3y", "4y", "5y"], value="4y", label="Histórico")
                         brm = gr.Button("Limpiar correlación", variant="primary")
                     mdrm = gr.Markdown()
-                    figrm = gr.Plot()
+                    figrm = gr.Plot(show_label=False)
                     brm.click(tab_rmt, [trm, prm], [figrm, mdrm])
                 with gr.Tab("🛰️ Kalman"):
                     gr.Markdown("**Hedge ratio DINÁMICO** para pairs trading con filtro de Kalman. El β entre "
@@ -1971,7 +1967,7 @@ def build():
                         pka = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
                         bka = gr.Button("Kalman dinámico", variant="primary")
                     mdka = gr.Markdown()
-                    figka = gr.Plot()
+                    figka = gr.Plot(show_label=False)
                     bka.click(tab_kalman, [tka, tkb, pka], [figka, mdka])
                 with gr.Tab("📡 Entropía"):
                     gr.Markdown("**¿Qué activo lidera a cuál?** Entropía de transferencia (teoría de la "
@@ -1984,7 +1980,7 @@ def build():
                         pte = gr.Dropdown(["2y", "3y", "5y"], value="3y", label="Histórico")
                         bte = gr.Button("Medir flujo info", variant="primary")
                     mdte = gr.Markdown()
-                    figte = gr.Plot()
+                    figte = gr.Plot(show_label=False)
                     bte.click(tab_te, [tte, bte_n, pte], [figte, mdte])
                 with gr.Tab("🎲 Opciones"):
                     gr.Markdown("**Valorar opciones y sus Griegas** (Black-Scholes-Merton). Con ticker "
@@ -2027,14 +2023,14 @@ def build():
                                              "NeuralProphet (AR-Net)", "AutoGluon (2 min, cuantiles)"],
                                             value="Prophet (rápido)", label="Motor")
                         b = gr.Button("Forecast", variant="primary")
-                    pl = gr.Plot(); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()
+                    pl = gr.Plot(show_label=False); tb = gr.Dataframe(label="30/90/120 días"); md = gr.Markdown()
                     b.click(tab_forecast, [t, p, motor], [pl, tb, md])
                 with gr.Tab("2 · Indicadores"):
                     with gr.Row():
                         t2 = gr.Textbox(value="AAPL", label="Ticker", scale=3)
                         p2 = gr.Dropdown(["6mo","1y","2y"], value="1y", label="Histórico")
                         b2 = gr.Button("Calcular", variant="primary")
-                    pl2 = gr.Plot(); tb2 = gr.Dataframe(label="Señales")
+                    pl2 = gr.Plot(show_label=False); tb2 = gr.Dataframe(label="Señales")
                     b2.click(tab_indicadores, [t2, p2], [pl2, tb2])
                 with gr.Tab("3 · Screener"):
                     t3 = gr.Textbox(value=WL, label="Tickers (espacio/coma)")
@@ -2051,14 +2047,14 @@ def build():
                         fa = gr.Number(value=50, label="SMA rápida"); sl = gr.Number(value=200, label="SMA lenta")
                         p5 = gr.Dropdown(["2y","5y","10y"], value="5y", label="Histórico")
                         b5 = gr.Button("Backtest", variant="primary")
-                    pl5 = gr.Plot(); md5 = gr.Markdown()
+                    pl5 = gr.Plot(show_label=False); md5 = gr.Markdown()
                     b5.click(tab_backtest, [t5, st, fa, sl, p5], [pl5, md5])
                 with gr.Tab("6 · Correlación"):
                     with gr.Row():
                         t6 = gr.Textbox(value="AAPL MSFT TLT GLD", label="Tickers", scale=3)
                         p6 = gr.Dropdown(["1y","2y","3y"], value="2y", label="Histórico")
                         b6 = gr.Button("Correlación", variant="primary")
-                    pl6 = gr.Plot(); tb6 = gr.Dataframe(label="Matriz")
+                    pl6 = gr.Plot(show_label=False); tb6 = gr.Dataframe(label="Matriz")
                     b6.click(tab_corr, [t6, p6], [pl6, tb6])
                 with gr.Tab("7 · Cartera"):
                     with gr.Row():
@@ -2066,7 +2062,7 @@ def build():
                         p7 = gr.Dropdown(["2y","3y","5y"], value="3y", label="Histórico")
                         rf = gr.Number(value=0.0, label="Tasa libre riesgo (0.03=3%)")
                         b7 = gr.Button("Optimizar", variant="primary")
-                    pl7 = gr.Plot(); md7 = gr.Markdown()
+                    pl7 = gr.Plot(show_label=False); md7 = gr.Markdown()
                     b7.click(tab_cartera, [t7, p7, rf], [pl7, md7])
         with gr.Tab("📚 Contexto y riesgo"):
             with gr.Tabs():
@@ -2124,7 +2120,7 @@ def build():
                         pc = gr.Dropdown(["3y", "5y", "8y"], value="5y", label="Histórico")
                         bc = gr.Button("Calibrar banda", variant="primary")
                     mdc = gr.Markdown()
-                    figc = gr.Plot()
+                    figc = gr.Plot(show_label=False)
                     tblc = gr.Dataframe(wrap=True)
                     bc.click(tab_conformal, [tc, pc], [figc, tblc, mdc])
                 with gr.Tab("🛡️ Riesgo"):
@@ -2135,7 +2131,7 @@ def build():
                         pr = gr.Dropdown(["1y", "3y", "5y"], value="3y", label="Histórico")
                         cr = gr.Dropdown([0.95, 0.99], value=0.95, label="Confianza VaR")
                         br = gr.Button("Medir riesgo", variant="primary")
-                    figr = gr.Plot()
+                    figr = gr.Plot(show_label=False)
                     with gr.Row():
                         tblr = gr.Dataframe(label="VaR / CVaR / Drawdown", wrap=True)
                         corrr = gr.Dataframe(label="Correlación", wrap=True)
@@ -2191,7 +2187,7 @@ def build():
                                            value="mensual", label="Rebalanceo")
                         blab = gr.Textbox(value="SPY", label="Índice de referencia", scale=1)
                         bblab = gr.Button("Analizar cartera", variant="primary")
-                    figlab = gr.Plot()
+                    figlab = gr.Plot(show_label=False)
                     tbllab = gr.Dataframe(label="Métricas comparadas", wrap=True)
                     tbl2lab = gr.Dataframe(label="Crisis y contribución al riesgo", wrap=True)
                     mdlab = gr.Markdown()
@@ -2206,7 +2202,7 @@ def build():
                         adca = gr.Dropdown([3, 5, 8, 10], value=5, label="Años")
                         bdca = gr.Button("Comparar DCA vs entrada única", variant="secondary")
                     mddca = gr.Markdown()
-                    figdca = gr.Plot()
+                    figdca = gr.Plot(show_label=False)
                     tbldca = gr.Dataframe(wrap=True)
                     bdca.click(tab_dca, [tlp, tdca, adca], [figdca, tbldca, mddca])
                 with gr.Tab("🗞️ Informe"):

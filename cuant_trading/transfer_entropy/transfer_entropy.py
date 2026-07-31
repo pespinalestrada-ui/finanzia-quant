@@ -31,6 +31,20 @@ import pandas as pd
 import yfinance as yf
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+def _cmap(plt, nombre, respaldo):
+    """Rampa del tema Nocturne; si la herramienta se ejecuta fuera del panel
+    (sin finanzia_charts cargado), usa la rampa estándar de matplotlib."""
+    try:
+        return plt.get_cmap(nombre)
+    except Exception:
+        return respaldo
+
+
 def _retornos(tickers, period="3y"):
     series = {}
     for tk in tickers:
@@ -92,7 +106,7 @@ def _plot(M):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(9, 7))
-    im = ax.imshow(M.values, cmap="viridis")
+    im = ax.imshow(M.values, cmap=_cmap(plt, "nocturne_seq", "viridis"))
     ax.set_xticks(range(len(M))); ax.set_yticks(range(len(M)))
     ax.set_xticklabels(M.columns, rotation=45, ha="right", fontsize=8)
     ax.set_yticklabels(M.index, fontsize=8)
@@ -101,7 +115,7 @@ def _plot(M):
     for i in range(len(M)):
         for j in range(len(M)):
             if i != j:
-                ax.text(j, i, f"{M.values[i,j]:.2f}", ha="center", va="center", color="w", fontsize=7)
+                ax.text(j, i, f"{M.values[i,j]:.2f}", ha="center", va="center", color="#e9e9ed", fontsize=7)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout()
     return fig

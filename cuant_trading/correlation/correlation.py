@@ -20,6 +20,20 @@ import pandas as pd
 import yfinance as yf
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+def _cmap(plt, nombre, respaldo):
+    """Rampa del tema Nocturne; si la herramienta se ejecuta fuera del panel
+    (sin finanzia_charts cargado), usa la rampa estándar de matplotlib."""
+    try:
+        return plt.get_cmap(nombre)
+    except Exception:
+        return respaldo
+
+
 def main():
     ap = argparse.ArgumentParser(description="Matriz de correlación.")
     ap.add_argument("tickers", nargs="+")
@@ -59,14 +73,14 @@ def main():
         import matplotlib; matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         fig, ax = plt.subplots(figsize=(1.2*len(corr)+2, 1.0*len(corr)+1.5))
-        im = ax.imshow(corr, cmap="RdYlGn_r", vmin=-1, vmax=1)
+        im = ax.imshow(corr, cmap=_cmap(plt, "nocturne_corr", "RdYlGn_r"), vmin=-1, vmax=1)
         ax.set_xticks(range(len(corr))); ax.set_xticklabels(corr.columns, rotation=45, ha="right")
         ax.set_yticks(range(len(corr))); ax.set_yticklabels(corr.index)
         for i in range(len(corr)):
             for j in range(len(corr)):
                 ax.text(j, i, f"{corr.values[i, j]:.2f}",
                         ha="center", va="center", fontsize=8,
-                        color="white" if abs(corr.values[i, j]) > 0.6 else "black")
+                        color="#161826" if abs(corr.values[i, j]) > 0.55 else _NEU)
         plt.colorbar(im, label="correlación")
         ax.set_title(f"Correlación de retornos ({a.period})")
         fig.tight_layout()

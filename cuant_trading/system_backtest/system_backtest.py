@@ -32,6 +32,12 @@ sys.path.insert(0, str(_SUITE / "veredicto_backtest"))
 import veredicto_backtest as VB
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def _metricas(equity, capital):
     r = equity.pct_change().dropna()
     años = len(r) / 252 if len(r) else 1
@@ -98,9 +104,9 @@ def _plot(res):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     eq = res["equity"]
-    ax.plot(eq.index, eq.values, color="tab:blue", lw=1.6, label="Sistema (con costes)")
+    ax.plot(eq.index, eq.values, color=_ACC, lw=1.8, label="Sistema (con costes)")
     if res["spy_eq"] is not None:
-        ax.plot(res["spy_eq"].index, res["spy_eq"].values, color="gray", lw=1.2, ls="--",
+        ax.plot(res["spy_eq"].index, res["spy_eq"].values, color=_NEU, lw=1.2, ls="--",
                 label="SPY (buy & hold)")
     ax.set_title(f"Backtest del sistema · top-{res['top_n']} · rebal {res['rebal']}d · coste {res['coste_bps']}bps")
     ax.set_xlabel("Fecha"); ax.set_ylabel("Equity (€)"); ax.legend(loc="best")

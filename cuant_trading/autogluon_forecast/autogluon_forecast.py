@@ -43,6 +43,12 @@ import yfinance as yf
 COVARIABLES = {"ibex": "^IBEX", "banca_eu": "EXV1.DE"}
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def descargar(ticker, period="3y", con_covariables=False):
     """DataFrame [timestamp, target(, ibex, banca_eu), item_id]."""
     if con_covariables:
@@ -115,11 +121,11 @@ def plot(df, preds, ticker, out_png=None):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(12, 6))
     hist = df.iloc[-250:]
-    ax.plot(hist["timestamp"], hist["target"], color="black", lw=1.1, label="Histórico (1 año)")
+    ax.plot(hist["timestamp"], hist["target"], color=_NEU, lw=1.1, label="Histórico (1 año)")
     ts = preds.index.get_level_values("timestamp")
-    ax.plot(ts, preds["mean"], color="red", lw=1.4, label="Mediana AutoGluon")
-    ax.fill_between(ts, preds["0.1"], preds["0.9"], color="red", alpha=0.15, label="P10–P90")
-    ax.fill_between(ts, preds["0.3"], preds["0.7"], color="red", alpha=0.25, label="P30–P70")
+    ax.plot(ts, preds["mean"], color=_ACC, lw=1.4, label="Mediana AutoGluon")
+    ax.fill_between(ts, preds["0.1"], preds["0.9"], color=_ACC, alpha=0.15, label="P10–P90")
+    ax.fill_between(ts, preds["0.3"], preds["0.7"], color=_ACC, alpha=0.25, label="P30–P70")
     ax.set_title(f"{ticker.upper()} — AutoGluon TimeSeries ({len(preds)} días hábiles, cuantiles)")
     ax.set_xlabel("Fecha"); ax.set_ylabel("Precio"); ax.legend(loc="upper left")
     fig.tight_layout()

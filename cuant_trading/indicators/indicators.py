@@ -19,6 +19,12 @@ import pandas as pd
 import yfinance as yf
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def descargar(ticker, period="1y"):
     h = yf.Ticker(ticker).history(period=period, auto_adjust=False)
     if h.empty:
@@ -114,6 +120,17 @@ def mfi(df, n=14):
     return 100 - 100 / (1 + pos / neg.replace(0, np.nan))
 
 
+def hurst(ts, max_lag=20):
+    """Exponente de Hurst. ~0.5 paseo aleatorio, >0.55 tendencia, <0.45 reversión."""
+    lags = range(2, max_lag)
+    lags = [lag for lag in lags if lag < len(ts)]
+    if len(lags) < 3:
+        return 0.5
+    tau = [np.sqrt(np.std(np.subtract(ts[lag:], ts[:-lag]))) for lag in lags]
+    poly = np.polyfit(np.log(lags), np.log(tau), 1)
+    return poly[0] * 2.0
+
+
 def calcular_todos(df):
     """Rellena el DataFrame con todos los indicadores. Reutilizable por el dashboard."""
     c = df["Close"]
@@ -129,6 +146,7 @@ def calcular_todos(df):
     df["ADX"], df["DI_POS"], df["DI_NEG"] = adx(df)
     df["OBV"] = obv(df)
     df["MFI"] = mfi(df)
+    df["HURST"] = c.rolling(100).apply(lambda x: hurst(x), raw=True)
     return df
 
 
@@ -157,6 +175,10 @@ def señales_dict(df):
     out.append(("MFI(14)", f"{mf:.0f}", "sobreventa" if mf < 20 else "sobrecompra" if mf > 80 else "neutral"))
     obv_slope = "subiendo" if df["OBV"].iloc[-1] > df["OBV"].iloc[-10] else "bajando"
     out.append(("OBV (volumen)", f"{obv_slope}", "flujo acumulado " + obv_slope))
+    h_val = last.get("HURST", float("nan"))
+    if not np.isnan(h_val):
+        reg = "tendencia" if h_val > 0.55 else "reversión" if h_val < 0.45 else "paseo aleatorio (rango)"
+        out.append(("Hurst (100d)", f"{h_val:.2f}", reg))
     return out
 
 
@@ -187,16 +209,18 @@ def main():
         fig, ax = plt.subplots(3, 1, figsize=(12, 9), sharex=True,
                                gridspec_kw={"height_ratios": [3, 1, 1]})
         d = df.iloc[-260:]
-        ax[0].plot(d["Date"], d["Close"], "k", lw=1, label="Close")
-        ax[0].plot(d["Date"], d["BB_up"], "b--", lw=0.7, alpha=0.6)
-        ax[0].plot(d["Date"], d["BB_lo"], "b--", lw=0.7, alpha=0.6)
-        ax[0].plot(d["Date"], d["SMA50"], "tab:orange", lw=0.8, label="SMA50")
-        ax[0].plot(d["Date"], d["SMA200"], "tab:red", lw=0.8, label="SMA200")
+        ax[0].plot(d["Date"], d["Close"], color="#e9e9ed", lw=1.4, label="Cierre")
+        ax[0].plot(d["Date"], d["BB_up"], color=_ACC, ls="--", lw=0.8, alpha=0.55)
+        ax[0].plot(d["Date"], d["BB_lo"], color=_ACC, ls="--", lw=0.8, alpha=0.55)
+        ax[0].plot(d["Date"], d["SMA50"], color=_GOLD, lw=1.1, label="SMA 50")
+        ax[0].plot(d["Date"], d["SMA200"], color=_DIM, lw=1.1, label="SMA 200")
         ax[0].set_title(f"{a.ticker.upper()} — precio + Bollinger + SMA"); ax[0].legend(fontsize=8)
-        ax[1].plot(d["Date"], d["RSI"], "tab:purple", lw=1); ax[1].axhline(70, color="r", ls="--", lw=0.6)
-        ax[1].axhline(30, color="g", ls="--", lw=0.6); ax[1].set_ylabel("RSI")
-        ax[2].bar(d["Date"], d["MACD_hist"], color="gray", width=1)
-        ax[2].plot(d["Date"], d["MACD"], "b", lw=0.8); ax[2].plot(d["Date"], d["MACD_sig"], "r", lw=0.8)
+        ax[1].plot(d["Date"], d["RSI"], color=_ACC2, lw=1.2); ax[1].axhline(70, color=_DOWN, ls="--", lw=0.9)
+        ax[1].axhline(30, color=_UP, ls="--", lw=0.9); ax[1].set_ylabel("RSI")
+        ax[2].bar(d["Date"], d["MACD_hist"], width=1, alpha=0.55,
+                  color=[_UP if v >= 0 else _DOWN for v in d["MACD_hist"]])
+        ax[2].plot(d["Date"], d["MACD"], color=_ACC, lw=1.2)
+        ax[2].plot(d["Date"], d["MACD_sig"], color=_GOLD, lw=1.0, ls="--")
         ax[2].set_ylabel("MACD")
         fig.tight_layout()
         out = f"{a.ticker.replace('.','_').replace('^','')}_indicadores.png"

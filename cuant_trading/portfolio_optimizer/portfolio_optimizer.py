@@ -21,6 +21,20 @@ import yfinance as yf
 from scipy.optimize import minimize
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+def _cmap(plt, nombre, respaldo):
+    """Rampa del tema Nocturne; si la herramienta se ejecuta fuera del panel
+    (sin finanzia_charts cargado), usa la rampa estándar de matplotlib."""
+    try:
+        return plt.get_cmap(nombre)
+    except Exception:
+        return respaldo
+
+
 def precios(tickers, period):
     data = {}
     for t in tickers:
@@ -70,10 +84,15 @@ def main():
     def report(nombre, w):
         r, v = perf(w)
         sh = (r - a.rf) / v
+        port_rets = rets @ w
+        var_95 = np.percentile(port_rets, 5) * 100
+        cvar_95 = port_rets[port_rets <= np.percentile(port_rets, 5)].mean() * 100
         print(f"\n=== {nombre} ===")
         print(f"  Retorno esp. anual : {r*100:.1f}%")
         print(f"  Volatilidad anual  : {v*100:.1f}%")
         print(f"  Sharpe             : {sh:.2f}")
+        print(f"  VaR diario (95%)   : {var_95:+.2f}%")
+        print(f"  CVaR diario (95%)  : {cvar_95:+.2f}%")
         print(f"  Pesos:")
         for nm, wi in sorted(zip(names, w), key=lambda x: -x[1]):
             if wi > 0.005:
@@ -95,11 +114,11 @@ def main():
         V = np.sqrt((W @ cov.values * W).sum(axis=1))
         S = (R - a.rf) / V
         fig, ax = plt.subplots(figsize=(10, 6))
-        sc = ax.scatter(V*100, R*100, c=S, cmap="viridis", s=8, alpha=0.5)
+        sc = ax.scatter(V*100, R*100, c=S, cmap=_cmap(plt, "nocturne_seq", "viridis"), s=8, alpha=0.55)
         plt.colorbar(sc, label="Sharpe")
         rs, vs = perf(w_sh); rm, vm = perf(w_mv)
-        ax.scatter(vs*100, rs*100, marker="*", s=300, color="red", label="Máx Sharpe", zorder=5)
-        ax.scatter(vm*100, rm*100, marker="*", s=300, color="blue", label="Mín volatilidad", zorder=5)
+        ax.scatter(vs*100, rs*100, marker="*", s=300, color=_ACC, label="Máx Sharpe", zorder=5)
+        ax.scatter(vm*100, rm*100, marker="*", s=300, color=_GOLD, label="Mín volatilidad", zorder=5)
         ax.set_xlabel("Volatilidad anual %"); ax.set_ylabel("Retorno esperado anual %")
         ax.set_title("Frontera eficiente"); ax.legend()
         fig.tight_layout()

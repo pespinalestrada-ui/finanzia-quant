@@ -30,6 +30,20 @@ import pandas as pd
 import yfinance as yf
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+def _cmap(plt, nombre, respaldo):
+    """Rampa del tema Nocturne; si la herramienta se ejecuta fuera del panel
+    (sin finanzia_charts cargado), usa la rampa estándar de matplotlib."""
+    try:
+        return plt.get_cmap(nombre)
+    except Exception:
+        return respaldo
+
+
 def _precios(tickers, period):
     series = {}
     for tk in tickers:
@@ -104,11 +118,11 @@ def _plot(corr, curva_port, tickers):
                                    gridspec_kw={"width_ratios": [1.2, 1]})
     # drawdown de la cartera
     dd = curva_port / curva_port.cummax() - 1.0
-    ax1.fill_between(dd.index, dd.values * 100, 0, color="tab:red", alpha=0.3)
-    ax1.plot(dd.index, dd.values * 100, color="tab:red", lw=1.0)
+    ax1.fill_between(dd.index, dd.values * 100, 0, color=_DOWN, alpha=0.28)
+    ax1.plot(dd.index, dd.values * 100, color=_DOWN, lw=1.2)
     ax1.set_title("Drawdown cartera equiponderada"); ax1.set_ylabel("%"); ax1.set_xlabel("Fecha")
     # heatmap correlación
-    im = ax2.imshow(corr.values, vmin=-1, vmax=1, cmap="RdYlGn_r")
+    im = ax2.imshow(corr.values, vmin=-1, vmax=1, cmap=_cmap(plt, "nocturne_corr", "RdYlGn_r"))
     ax2.set_xticks(range(len(corr))); ax2.set_yticks(range(len(corr)))
     ax2.set_xticklabels(corr.columns, rotation=45, ha="right", fontsize=8)
     ax2.set_yticklabels(corr.index, fontsize=8)

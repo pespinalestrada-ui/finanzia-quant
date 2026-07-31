@@ -33,6 +33,12 @@ sys.path.insert(0, str(_SUITE / "journal"))
 import journal as JR
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def cerradas():
     df = JR._load()
     c = df[df["estado"] == "CERRADA"].copy()
@@ -96,11 +102,11 @@ def _plot(res):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     eq = res["_equity"]
-    ax.plot(eq.index, eq.values, color="tab:blue", lw=1.6, marker="o", ms=3, label="Sistema (paper)")
+    ax.plot(eq.index, eq.values, color=_ACC, lw=1.8, marker="o", ms=3, label="Sistema (paper)")
     if res["_bench_equity"] is not None:
         b = res["_bench_equity"]
-        ax.plot(b.index, b.values, color="gray", lw=1.2, ls="--", label=f"{res['benchmark']} (comprar y mantener)")
-    ax.axhline(res["capital"], color="black", lw=0.6, alpha=0.5)
+        ax.plot(b.index, b.values, color=_NEU, lw=1.2, ls="--", label=f"{res['benchmark']} (comprar y mantener)")
+    ax.axhline(res["capital"], color=_DIM, lw=0.9, ls="--")
     ax.set_title("Rendimiento del sistema vs benchmark")
     ax.set_xlabel("Fecha"); ax.set_ylabel("Equity (€)"); ax.legend(loc="best")
     fig.tight_layout()

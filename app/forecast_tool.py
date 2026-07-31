@@ -22,7 +22,7 @@ from __future__ import annotations
 import sys
 import warnings
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -45,6 +45,12 @@ INTERVAL_WIDTH = 0.80             # banda 80 %
 # cripto en Yahoo = BASE-FIAT con guion (BTC-USD, ETH-EUR, DOGE-USDT). Las acciones
 # usan sufijos con punto (SAB.MC) o sin sufijo (AAPL); el forex usa "=X".
 _CRIPTO_FIAT = ("USD", "EUR", "USDT", "BUSD", "GBP", "BTC", "JPY")
+
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
 
 def es_cripto(ticker: str) -> bool:
     t = ticker.strip().upper()
@@ -236,11 +242,11 @@ def forecast(ticker: str, period: str = "3y"):
 def _plot(df, fcst, ticker, filas):
     fig, ax = plt.subplots(figsize=(11, 5))
     hist = df.iloc[-260:]
-    ax.plot(hist["ds"], hist["y"], color="black", linewidth=1.2, label="Histórico (1 año)")
-    ax.plot(fcst["ds"], fcst["yhat"], color="tab:blue", linewidth=1.5, label="Forecast")
+    ax.plot(hist["ds"], hist["y"], color=_NEU, linewidth=1.2, label="Histórico (1 año)")
+    ax.plot(fcst["ds"], fcst["yhat"], color=_ACC, linewidth=1.6, label="Forecast")
     ax.fill_between(fcst["ds"], fcst["yhat_lower"], fcst["yhat_upper"],
-                    color="tab:blue", alpha=0.18, label="Banda 80 %")
-    colores = {"30 días": "tab:green", "90 días": "tab:orange", "120 días": "tab:red"}
+                    color=_ACC, alpha=0.17, label="Banda 80 %")
+    colores = {"30 días": _UP, "90 días": _GOLD, "120 días": _ACC2}
     for f in filas:
         fecha = pd.to_datetime(f["Fecha objetivo"])
         ax.axvline(fecha, color=colores.get(f["Horizonte"], "gray"), linestyle="--", alpha=0.5)
@@ -272,7 +278,7 @@ def _informe(ticker, precio_actual, fecha_actual, filas, mapes):
     lineas = []
     lineas.append(f"# Informe de previsión — {ticker}")
     lineas.append("")
-    lineas.append(f"*Generado por la herramienta FinanzIA el {datetime.utcnow().date()}.*")
+    lineas.append(f"*Generado por la herramienta FinanzIA el {datetime.now(timezone.utc).date()}.*")
     lineas.append("")
     lineas.append("## Situación de partida")
     lineas.append(f"- Precio de cierre más reciente: **{precio_actual:.3f}** (a {fecha_actual.date()}).")

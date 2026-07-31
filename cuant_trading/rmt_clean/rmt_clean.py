@@ -32,6 +32,12 @@ import pandas as pd
 import yfinance as yf
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def _retornos(tickers, period="4y"):
     series = {}
     for tk in tickers:
@@ -122,9 +128,9 @@ def _plot(meta):
     x = np.linspace(max(1e-3, lam_m), lam_p, 200)
     rho = T / N * np.sqrt(np.clip((lam_p - x) * (x - lam_m), 0, None)) / (2 * np.pi * x)
     fig, ax = plt.subplots(figsize=(11, 5))
-    ax.hist(meta["vals"], bins=max(10, N), density=True, color="tab:blue", alpha=0.5, label="Autovalores reales")
-    ax.plot(x, rho, color="black", lw=2, label="Marchenko-Pastur (ruido)")
-    ax.axvline(lam_p, color="tab:red", ls="--", label=f"λ+ = {lam_p:.2f} (señal por encima)")
+    ax.hist(meta["vals"], bins=max(10, N), density=True, color=_ACC, alpha=0.5, label="Autovalores reales")
+    ax.plot(x, rho, color="#e9e9ed", lw=2, label="Marchenko-Pastur (ruido)")
+    ax.axvline(lam_p, color=_GOLD, ls="--", label=f"λ+ = {lam_p:.2f} (señal por encima)")
     ax.set_title(f"Espectro de autovalores · {N} activos · {meta['n_señal']} de señal (resto = ruido)")
     ax.set_xlabel("Autovalor"); ax.set_ylabel("Densidad"); ax.legend(loc="best")
     fig.tight_layout()

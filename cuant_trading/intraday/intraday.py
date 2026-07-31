@@ -37,6 +37,12 @@ _MIN = {"1m": 1, "2m": 2, "5m": 5, "15m": 15, "30m": 30, "60m": 60, "90m": 90}
 _MAX_PERIOD = {"1m": "7d", "2m": "60d", "5m": "60d", "15m": "60d", "30m": "60d", "60m": "60d", "90m": "60d"}
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def descargar(ticker, interval="5m", period=None):
     """Barras intradía (sesión regular). Ajusta el periodo al límite de yfinance."""
     if interval not in _MIN:
@@ -532,10 +538,10 @@ def _plot_snapshot(hoy, ticker, interval, sesion):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
-    ax.plot(hoy.index, hoy["Close"], color="black", lw=1.1, label="Precio")
-    ax.plot(hoy.index, hoy["VWAP"], color="tab:blue", lw=1.3, label="VWAP")
-    ax.axhline(float(hoy["OR_high"].iloc[-1]), color="tab:green", ls="--", lw=1, label="Rango apertura")
-    ax.axhline(float(hoy["OR_low"].iloc[-1]), color="tab:red", ls="--", lw=1)
+    ax.plot(hoy.index, hoy["Close"], color="#e9e9ed", lw=1.4, label="Precio")
+    ax.plot(hoy.index, hoy["VWAP"], color=_ACC, lw=1.4, label="VWAP")
+    ax.axhline(float(hoy["OR_high"].iloc[-1]), color=_UP, ls="--", lw=1, label="Rango apertura")
+    ax.axhline(float(hoy["OR_low"].iloc[-1]), color=_DOWN, ls="--", lw=1)
     ax.set_title(f"{ticker.upper()} · intradía {interval} · sesión {sesion}")
     ax.set_xlabel("Hora"); ax.set_ylabel("Precio"); ax.legend(loc="best")
     fig.tight_layout()

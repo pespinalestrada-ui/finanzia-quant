@@ -40,6 +40,12 @@ np.random.seed(42)
 
 
 # --- 1. Monte Carlo de PRECIO ------------------------------------------------
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def simular_precio(ticker, horizon=90, n_sims=3000, metodo="bootstrap", period="3y"):
     h = yf.Ticker(ticker).history(period=period, auto_adjust=True)
     if h.empty:
@@ -122,10 +128,10 @@ def _plot_precio(paths, meta, ticker):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     muestra = paths[np.random.choice(len(paths), min(200, len(paths)), replace=False)]
-    ax.plot(muestra.T, color="tab:blue", alpha=0.05)
-    for p, col in [(5, "tab:red"), (50, "black"), (95, "tab:green")]:
+    ax.plot(muestra.T, color=_ACC, alpha=0.05)
+    for p, col in [(5, _DOWN), (50, "#e9e9ed"), (95, _UP)]:
         ax.plot(np.percentile(paths, p, axis=0), color=col, lw=1.8, label=f"P{p}")
-    ax.axhline(meta["px0"], color="gray", ls="--", lw=0.8)
+    ax.axhline(meta["px0"], color=_NEU, ls="--", lw=0.8)
     ax.set_title(f"{ticker.upper()} · Monte Carlo {meta['n_sims']} caminos · {meta['horizon']}d ({meta['metodo']})")
     ax.set_xlabel("Días"); ax.set_ylabel("Precio"); ax.legend(loc="best")
     fig.tight_layout()
@@ -138,10 +144,10 @@ def _plot_sistema(equity, meta):
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(11, 5))
     muestra = equity[np.random.choice(len(equity), min(300, len(equity)), replace=False)]
-    ax.plot(muestra.T, color="tab:blue", alpha=0.05)
-    for p, col in [(5, "tab:red"), (50, "black"), (95, "tab:green")]:
+    ax.plot(muestra.T, color=_ACC, alpha=0.05)
+    for p, col in [(5, _DOWN), (50, "#e9e9ed"), (95, _UP)]:
         ax.plot(np.percentile(equity, p, axis=0), color=col, lw=1.8, label=f"P{p}")
-    ax.axhline(meta["capital"], color="gray", ls="--", lw=0.8)
+    ax.axhline(meta["capital"], color=_NEU, ls="--", lw=0.8)
     ax.set_title(f"Monte Carlo del sistema · {meta['n_sims']} simulaciones · {meta['n_trades']} operaciones")
     ax.set_xlabel("Operación"); ax.set_ylabel("Equity (€)"); ax.legend(loc="best")
     fig.tight_layout()

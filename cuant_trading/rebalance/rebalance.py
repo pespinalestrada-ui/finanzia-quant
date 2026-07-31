@@ -36,6 +36,12 @@ CSV = Path(__file__).resolve().parent / "cartera_lp.csv"
 UMBRAL_DRIFT = 0.025          # solo ajustar si el peso se desvía >2.5 puntos
 
 
+# paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
+# sobre fondo oscuro el negro y el azul puro no se ven
+_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
+_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+
+
 def _precios_hoy(tickers):
     """Último precio válido. yfinance a veces devuelve la última fila vacía (NaN):
     sin el dropna, la cartera entera se quedaba sin valor."""
@@ -194,9 +200,9 @@ def _plot_dca(curvas, tickers):
     import matplotlib.pyplot as plt
     dca, ls, ap = curvas
     fig, ax = plt.subplots(figsize=(11, 5))
-    ax.plot(ls.index, ls.values, color="tab:blue", lw=1.4, label="Entrada única")
-    ax.plot(dca.index, dca.values, color="tab:green", lw=1.4, label="DCA (mensual)")
-    ax.plot(ap.index, ap.values, color="gray", ls="--", lw=1.0, label="Dinero aportado (DCA)")
+    ax.plot(ls.index, ls.values, color=_ACC, lw=1.6, label="Entrada única")
+    ax.plot(dca.index, dca.values, color=_GOLD, lw=1.6, label="DCA (mensual)")
+    ax.plot(ap.index, ap.values, color=_NEU, ls="--", lw=1.0, label="Dinero aportado (DCA)")
     ax.set_title("DCA vs entrada única · " + ", ".join(tickers[:6]))
     ax.set_xlabel("Fecha"); ax.set_ylabel("Valor (€)"); ax.legend(loc="best")
     fig.tight_layout()

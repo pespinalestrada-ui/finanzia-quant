@@ -216,8 +216,11 @@ def tab_cartera(txt, period, rf):
         wmv = minimize(lambda w: perf(w)[1], w0, method="SLSQP", bounds=bnds, constraints=cons).x
         def blk(nm, w):
             r, v = perf(w); s = (r-rf)/v
+            port_rets = rets @ w
+            var_95 = np.percentile(port_rets, 5) * 100
+            cvar_95 = port_rets[port_rets <= np.percentile(port_rets, 5)].mean() * 100
             ps = " · ".join(f"{n_}:{wi*100:.0f}%" for n_, wi in sorted(zip(names,w), key=lambda x:-x[1]) if wi>0.005)
-            return f"**{nm}** — ret {r*100:.1f}% · vol {v*100:.1f}% · Sharpe {s:.2f}\n\n{ps}"
+            return f"**{nm}** — ret {r*100:.1f}% · vol {v*100:.1f}% · Sharpe {s:.2f} · **VaR 95%:** {var_95:+.2f}% · **CVaR:** {cvar_95:+.2f}%\n\n{ps}"
         txt_out = blk("Máximo Sharpe", wsh) + "\n\n" + blk("Mínima volatilidad", wmv)
         rng = np.random.default_rng(42); N=3000
         W = rng.random((N,n)); W/=W.sum(axis=1,keepdims=True)
@@ -316,6 +319,18 @@ def _var90_de_tabla(tab):
     return float(tab.iloc[min(1, len(tab) - 1)]["Variación %"])
 
 
+def _mape_de_tabla(tab):
+    """Saca el MAPE del horizonte 90d de la tabla para ponderación OOS."""
+    for _, r in tab.iterrows():
+        if "90" in str(r.get("Horizonte", "")):
+            val = str(r.get("MAPE backtest %", "10.0")).replace("%", "").strip()
+            try:
+                return float(val) if val != "n/d" else 10.0
+            except ValueError:
+                return 10.0
+    return 10.0
+
+
 def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
     """
     Agrega forecast (consenso multi-modelo opcional) + batería técnica completa
@@ -330,19 +345,20 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         # --- 1. Forecast: Prophet siempre; consenso multi-modelo si se pide -----
         fig, tabla_fc, _informe, meta = forecast_tool.forecast(ticker, period=period)
         prophet_var = _var90_de_tabla(tabla_fc)
+        prophet_mape = _mape_de_tabla(tabla_fc)
         conf_str = str(tabla_fc.iloc[1]["Confianza"])         # "ALTA (76)"
         try:
             conf = int(conf_str.split("(")[1].rstrip(")"))
         except Exception:
             conf = 50
-        modelos = [("Prophet", prophet_var)]
+        modelos = [("Prophet", prophet_var, prophet_mape)]
 
         if con_modelos:
             # LSTM (torch ya cargado)
             try:
                 import lstm_forecast as LF
                 _f, lf_tab, _m = LF.forecast(ticker, period, horizon=120)
-                modelos.append(("LSTM", _var90_de_tabla(lf_tab)))
+                modelos.append(("LSTM", _var90_de_tabla(lf_tab), _mape_de_tabla(lf_tab)))
             except Exception:
                 pass
             # NeuralProphet (solo si instalado)
@@ -351,7 +367,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
                 try:
                     import neuralprophet_forecast as NPF
                     _f, np_tab, _m = NPF.forecast(ticker, period, horizon=120, epochs=50)
-                    modelos.append(("NeuralProphet", _var90_de_tabla(np_tab)))
+                    modelos.append(("NeuralProphet", _var90_de_tabla(np_tab), _mape_de_tabla(np_tab)))
                 except Exception:
                     pass
             # AutoGluon (solo si instalado)
@@ -361,34 +377,30 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
                     dfa = AG.descargar(ticker, period)
                     preds, _lb = AG.entrenar_y_predecir(dfa, horizon=120, preset="fast_training", time_limit=90)
                     ag_tab, _px = AG.resumen(preds, dfa, horizontes=(30, 90, 120))
-                    modelos.append(("AutoGluon", _var90_de_tabla(ag_tab)))
+                    modelos.append(("AutoGluon", _var90_de_tabla(ag_tab), _mape_de_tabla(ag_tab)))
                 except Exception:
                     pass
 
-        # Señal base = Prophet (con fuerza, como el modo rápido)
-        prophet_score = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
+        # Ensemble ponderado por Skill OOS (1/MAPE)
         if len(modelos) == 1:
+            prophet_score = max(-1.0, min(1.0, prophet_var / 10.0)) * conf / 100.0
             s_fc = prophet_score
             lect_fc = f"{prophet_var:+.1f} % · confianza {conf_str}"
         else:
-            # Los demás modelos CONFIRMAN o TEMPERAN la señal de Prophet (no la diluyen).
-            # Solo cuentan votos con movimiento relevante (>0.5%); los planos no penalizan.
-            sig_p = 1 if prophet_var > 0 else -1
-            otros = [v for n, v in modelos[1:]]
-            confirman = sum(1 for v in otros if abs(v) > 0.5 and (1 if v > 0 else -1) == sig_p)
-            contradicen = sum(1 for v in otros if abs(v) > 0.5 and (1 if v > 0 else -1) != sig_p)
-            n_otros = len(otros)
-            consenso = (confirman - contradicen) / n_otros if n_otros else 0.0   # [-1, +1]
-            # confirma → amplifica hasta +40%; contradice → reduce hasta -60% (no invierte)
-            factor = 1.0 + (0.4 * consenso if consenso >= 0 else 0.6 * consenso)
-            s_fc = max(-1.0, min(1.0, prophet_score * max(0.0, factor)))
-            acuerdo_pct = int((confirman / n_otros * 100)) if n_otros else 0
-            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v in modelos) + f" · {confirman}/{n_otros} confirman Prophet"
-            tag = ("✅ confirman" if consenso > 0.3 else "⚠️ contradicen" if consenso < -0.3 else "≈ mixtos")
-            notas_modelos = (f"\n\n**Consenso de {len(modelos)} modelos:** los otros {tag} la dirección de Prophet "
-                             f"({confirman} a favor, {contradicen} en contra). "
-                             f"La señal de Prophet se {'refuerza' if consenso>0 else 'tempera' if consenso<0 else 'mantiene'}.")
-        pilares.append(("Forecast 90d" + (" (Prophet + consenso)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
+            pesos = []
+            var_pond = []
+            for n, v, mape in modelos:
+                peso = 1.0 / max(0.5, mape)  # evitar división por cero
+                pesos.append(peso)
+                var_pond.append(v * peso)
+            
+            suma_pesos = sum(pesos)
+            var_ensemble = sum(var_pond) / suma_pesos
+            
+            s_fc = max(-1.0, min(1.0, var_ensemble / 10.0)) * conf / 100.0
+            lect_fc = " · ".join(f"{n} {v:+.1f}%" for n, v, _ in modelos) + f" → Ensemble: {var_ensemble:+.1f}%"
+            notas_modelos = f"\n\n**Ensemble OOS ({len(modelos)} modelos):** Ponderado inversamente por el error reciente de cada modelo (1/MAPE). Predicción combinada direccional: {var_ensemble:+.2f}%."
+        pilares.append(("Forecast 90d" + (" (OOS Ensemble)" if len(modelos) > 1 else " (Prophet)"), lect_fc, s_fc, 0.30))
 
         # --- 2. Técnicos sobre 1 año (con OHLCV completo) -----------------------
         dfh = _dl(ticker, "1y")
@@ -405,6 +417,9 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         adx_v = float(last["ADX"]); dir_adx = 1 if last["DI_POS"] > last["DI_NEG"] else -1
         s_adx = dir_adx * 0.7 if adx_v > 25 else 0.0
         pilares.append(("ADX (fuerza tendencia)", f"{adx_v:.0f} ({'FUERTE ' + ('alcista' if dir_adx>0 else 'bajista') if adx_v>25 else 'débil/lateral'})", s_adx, 0.08))
+
+        # Hurst: detección de régimen
+        hurst_v = last.get("HURST", float("nan"))
 
         # Consenso de osciladores: RSI + Estocástico + Williams%R + MFI + CCI
         votos = []
@@ -448,12 +463,46 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
         # --- agregación ponderada ----------------------------------------------
         wsum = sum(p[3] for p in pilares)
         total = sum(p[2] * p[3] for p in pilares) / wsum
-        if total >= 0.35:
+
+        # Filtro de Régimen: bloquea señales en mercados laterales
+        en_rango = False
+        razon_rango = ""
+        if not np.isnan(hurst_v) and 0.40 < hurst_v < 0.55 and adx_v < 25:
+            en_rango = True
+            razon_rango = f"Filtro de Régimen ACTIVO: Hurst={hurst_v:.2f} (paseo aleatorio) y ADX={adx_v:.0f} (<25). "
+
+        if en_rango:
+            verd, emoji = "MANTENER", "🟡"
+            notas_modelos += f"\n\n> ⚠️ **{razon_rango}** Forzando veredicto a MANTENER por falta de tendencia direccional."
+        elif total >= 0.35:
             verd, emoji = "COMPRAR", "🟢"
         elif total <= -0.35:
             verd, emoji = "VENDER", "🔴"
         else:
             verd, emoji = "MANTENER", "🟡"
+
+        # --- Auto-Logging -----------------------------------------------------
+        nota_log = ""
+        if verd in ["COMPRAR", "VENDER"]:
+            try:
+                # Usa posición base 10k, objetivo 15% volatilidad
+                vol_anual = PS.garch_volatility(ticker)
+                atr, px_atr = PS.atr_actual(ticker)
+                stop = px - 2 * atr if verd == "COMPRAR" else px + 2 * atr
+                r_accion = abs(px - stop)
+                
+                if not np.isnan(vol_anual) and vol_anual > 0:
+                    weight = 0.15 / vol_anual
+                    coste_obj = 10000 * weight
+                    shares = max(1, int(coste_obj // px))
+                else:
+                    riesgo_eur = 10000 * 0.01
+                    shares = max(1, int(riesgo_eur // r_accion))
+                
+                nid = JR.abrir(ticker, px, stop, shares, f"Auto-Veredicto: {verd} (Score {total:+.2f})", "SHORT" if verd == "VENDER" else "LONG")
+                nota_log = f"\n\n✅ **Auto-Logging:** Operación #{nid} registrada automáticamente en el Diario (simulada) para medir expectancy."
+            except Exception as ej:
+                nota_log = f"\n\n⚠️ Error al auto-registrar en Diario: {ej}"
 
         tabla = pd.DataFrame(
             [{"Pilar": n, "Lectura": l, "Score": round(s, 2),
@@ -472,6 +521,7 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False):
               f"{len(pilares)} pilares"
               + (f" · *({', '.join(extras)})*" if extras else "")
               + notas_modelos
+              + nota_log
               + "\n\n> ⚠️ Estimación estadística automática (forecast + batería técnica + volumen"
               + (" + sentimiento" if con_sentimiento else "")
               + "). **NO es recomendación de inversión.** Resumen, no orden.")

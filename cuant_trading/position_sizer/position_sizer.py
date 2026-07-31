@@ -25,6 +25,19 @@ import numpy as np
 import pandas as pd
 
 
+def garch_volatility(ticker):
+    """Calcula proxy GARCH(1,1) usando EWMA (lambda=0.94, estándar RiskMetrics)."""
+    import yfinance as yf
+    h = yf.Ticker(ticker).history(period="1y", auto_adjust=False)
+    if h.empty:
+        return float("nan")
+    retornos = h["Close"].pct_change().dropna()
+    # Volatilidad diaria usando EWMA lambda=0.94 (span ~ 32)
+    vol_diaria = retornos.ewm(alpha=0.06, adjust=False).std().iloc[-1]
+    # Volatilidad anualizada
+    return float(vol_diaria * np.sqrt(252))
+
+
 def atr_actual(ticker, n=14):
     import yfinance as yf
     h = yf.Ticker(ticker).history(period="3mo", auto_adjust=False)
@@ -48,34 +61,59 @@ def main():
     ap.add_argument("--targets", default="1,2,3", help="Objetivos en R-múltiplos (coma).")
     ap.add_argument("--winrate", type=float, help="Tasa de acierto (0-1) para Kelly.")
     ap.add_argument("--payoff", type=float, help="Ratio ganancia media / pérdida media para Kelly.")
+    ap.add_argument("--vol-target", type=float, default=0.0, help="Volatilidad anual objetivo (ej. 0.15 para 15%). Activa Volatility Targeting.")
     a = ap.parse_args()
 
     entry = a.entry
     stop = a.stop
     if a.ticker:
         atr, px = atr_actual(a.ticker)
+        vol_anual = garch_volatility(a.ticker)
         entry = entry or px
         stop = stop or (entry - a.atr_mult * atr)
         print(f"\n{a.ticker.upper()}: precio {px:.3f} · ATR(14) {atr:.3f} · stop {a.atr_mult}×ATR = {stop:.3f}")
+        if not np.isnan(vol_anual):
+            print(f"Proxy GARCH (EWMA) volatilidad anual: {vol_anual*100:.1f}%")
     if entry is None or stop is None:
         raise SystemExit("Faltan --entry/--stop (o usa --ticker para stop por ATR).")
     if stop >= entry:
         raise SystemExit("El stop debe estar por debajo de la entrada (posición larga).")
 
-    riesgo_eur = a.capital * a.risk / 100
     riesgo_accion = entry - stop
-    shares = int(riesgo_eur // riesgo_accion)
+
+    kelly_f = 0.0
+    kelly_rec = 0.0
+    if a.winrate and a.payoff:
+        kelly_f = a.winrate - (1 - a.winrate) / a.payoff
+        kelly_rec = max(0.0, kelly_f / 2)
+
+    if a.vol_target > 0 and a.ticker and not np.isnan(vol_anual):
+        weight = a.vol_target / vol_anual
+        if kelly_rec > 0:
+            peso_final = min(weight, kelly_rec)
+            modo_txt = f"Vol Target acotado por Kelly ({peso_final*100:.1f}% del capital)"
+        else:
+            peso_final = weight
+            modo_txt = f"Volatility Targeting ({weight*100:.1f}% del capital)"
+        coste_obj = a.capital * peso_final
+        shares = max(1, int(coste_obj // entry))
+        riesgo_eur = shares * riesgo_accion
+    else:
+        riesgo_eur = a.capital * a.risk / 100
+        shares = max(1, int(riesgo_eur // riesgo_accion))
+        modo_txt = f"Riesgo fijo {a.risk}% del capital"
+
     coste = shares * entry
     riesgo_real = shares * riesgo_accion
     pct_capital = coste / a.capital * 100
 
     print(f"\n=== Tamaño de posición ===")
+    print(f"  Modo de sizing     : {modo_txt}")
     print(f"  Capital            : {a.capital:,.2f} €")
-    print(f"  Riesgo objetivo    : {a.risk:.2f}% = {riesgo_eur:,.2f} €")
     print(f"  Entrada / Stop     : {entry:.3f} / {stop:.3f}  (riesgo/acción {riesgo_accion:.3f})")
     print(f"  → ACCIONES         : {shares}")
     print(f"  → Coste posición   : {coste:,.2f} €  ({pct_capital:.1f}% del capital)")
-    print(f"  → Riesgo real      : {riesgo_real:,.2f} €")
+    print(f"  → Riesgo real      : {riesgo_real:,.2f} €  ({riesgo_real/a.capital*100:.2f}%)")
 
     print(f"\n=== Objetivos (R-múltiplos) ===")
     for r in [float(x) for x in a.targets.split(",")]:
@@ -84,13 +122,11 @@ def main():
         print(f"  {r:.0f}R → precio {precio_obj:.3f}  (ganancia {ganancia:,.2f} €)")
 
     if a.winrate and a.payoff:
-        # Kelly: f = W - (1-W)/R
-        f = a.winrate - (1 - a.winrate) / a.payoff
         print(f"\n=== Kelly ===")
         print(f"  Win-rate {a.winrate:.0%}, payoff {a.payoff:.2f}")
-        print(f"  Fracción Kelly completa : {f*100:.1f}% del capital por operación")
-        print(f"  Kelly fraccionada (1/2) : {f*50:.1f}%  (recomendado, menos varianza)")
-        if f <= 0:
+        print(f"  Fracción Kelly completa : {kelly_f*100:.1f}% del capital por operación")
+        print(f"  Kelly fraccionada (1/2) : {kelly_rec*100:.1f}%  (recomendado, menos varianza)")
+        if kelly_f <= 0:
             print("  ⚠ Kelly ≤ 0: la estrategia no tiene ventaja, no operar.")
     print()
 

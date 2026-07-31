@@ -91,9 +91,9 @@ def walk_forward(df, horizon, n_origenes=15, min_train=400):
 
 
 def metricas(bt):
-    """Calcula DA + binomial, Theil U2, MAPE±sd, cobertura sobre el DataFrame walk-forward."""
+    """Calcula DA + binomial, Theil U2, MAPE±sd, cobertura teórica y cuantiles empíricos (conformal)."""
     n = len(bt)
-    err = bt["yhat"] - bt["real"]
+    err = bt["real"] - bt["yhat"]  # Error = Real - Predicho
     err_naive = bt["naive"] - bt["real"]
     # MAPE por origen
     ape = (err.abs() / bt["real"].abs()) * 100
@@ -114,10 +114,14 @@ def metricas(bt):
         pval = 1 - 0.5 * (1 + erf(z / sqrt(2)))   # P(Z>z)
     else:
         z = pval = float("nan")
-    # cobertura banda 80%
-    dentro = ((bt["real"] >= bt["lo"]) & (bt["real"] <= bt["hi"])).mean()
+    # cobertura teórica de la banda de Prophet
+    dentro_teorico = ((bt["real"] >= bt["lo"]) & (bt["real"] <= bt["hi"])).mean()
+    # cuantiles empíricos (conformal) para banda del 80% (P10 y P90 del residuo)
+    q10 = float(np.percentile(err, 10)) if n > 0 else float("nan")
+    q90 = float(np.percentile(err, 90)) if n > 0 else float("nan")
     return dict(n=n, nval=nval, da=da, aciertos=aciertos, z=z, pval=pval,
-                u2=u2, mape=mape, mape_sd=mape_sd, cobertura=float(dentro))
+                u2=u2, mape=mape, mape_sd=mape_sd, cobertura=float(dentro_teorico),
+                conformal_q10=q10, conformal_q90=q90)
 
 
 def informe(ticker, horizon, mt):

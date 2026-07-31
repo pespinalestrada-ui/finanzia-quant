@@ -96,7 +96,7 @@ def narrativa(modelo):
         import importlib.util
         nb_agent_path = ROOT / "notebooks" / "06_agente_explicacion.ipynb"
         # Importamos las funciones replicándolas aquí (más simple que ejecutar el .ipynb)
-        from datetime import datetime
+        from datetime import datetime, timezone
         import numpy as np
 
         sab = pd.read_csv(DATA / "sab_5y_clean.csv", parse_dates=["Date"])
@@ -126,7 +126,7 @@ def narrativa(modelo):
 
         return f"""## Informe FinanzIA — SAB.MC
 
-*Generado el {datetime.utcnow().date()} a partir del modelo '{modelo}'.*
+*Generado el {datetime.now(timezone.utc).date()} a partir del modelo '{modelo}'.*
 
 **Situación actual:** cierre **{resumen['cierre_actual']} EUR** sobre serie de {resumen['sesiones']} sesiones ({resumen['rango']}). Retorno 5 años **{resumen['retorno_5y_pct']}%**, volatilidad anualizada **{resumen['volatilidad_anualizada_pct']}%**.
 

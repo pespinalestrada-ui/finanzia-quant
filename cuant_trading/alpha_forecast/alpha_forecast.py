@@ -36,12 +36,18 @@ import pandas as pd
 import yfinance as yf
 
 
+import sys
+from pathlib import Path
+# Permitir importar data_loader desde src
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
+from data_loader import get_ticker_history
+
 def descargar(ticker, period="8y"):
-    h = yf.Ticker(ticker).history(period=period, auto_adjust=True)
+    h = get_ticker_history(ticker, period=period, auto_adjust=True)
     if h.empty:
         raise ValueError(f"Ticker '{ticker}' sin datos.")
-    h = h.reset_index()
-    h["Date"] = pd.to_datetime(h["Date"]).dt.tz_localize(None)
+    if "Date" not in h.columns:
+        h = h.reset_index()
     return h[["Date", "Open", "High", "Low", "Close", "Volume"]].dropna().reset_index(drop=True)
 
 
@@ -129,16 +135,18 @@ def backtest_direccion(df, horizon=5, step=5, train_min=500):
         return None
 
     preds, reales, probs = [], [], []
-    t = train_min
-    while t < n - 1:
+    from joblib import Parallel, delayed
+
+    def process_fold(t_curr):
         # EMBARGO: las últimas 'horizon' filas de train tienen etiqueta que mira al test → se purgan
-        tr_end = t - horizon
+        tr_end = t_curr - horizon
         if tr_end < 100:
-            t += step; continue
+            return None
         Xtr, Ytr = X.iloc[:tr_end], Y.iloc[:tr_end]
-        Xte = X.iloc[t:t+step]; Yte = Y.iloc[t:t+step]
+        Xte = X.iloc[t_curr:t_curr+step]
+        Yte = Y.iloc[t_curr:t_curr+step]
         if Xte.empty:
-            break
+            return None
         # balance de clases
         w = Ytr.map({0: (Ytr == 1).mean(), 1: (Ytr == 0).mean()}).clip(lower=0.1)
         clf = lgb.LGBMClassifier(n_estimators=120, num_leaves=15, max_depth=4,
@@ -147,8 +155,17 @@ def backtest_direccion(df, horizon=5, step=5, train_min=500):
                                  verbosity=-1)
         clf.fit(Xtr, Ytr, sample_weight=w)
         p = clf.predict_proba(Xte)[:, 1]
-        probs.extend(p); preds.extend((p > 0.5).astype(int)); reales.extend(Yte.values)
-        t += step
+        return p, (p > 0.5).astype(int), Yte.values
+
+    t_values = list(range(train_min, n - 1, step))
+    resultados = Parallel(n_jobs=-1)(delayed(process_fold)(t) for t in t_values)
+
+    for res in resultados:
+        if res is not None:
+            p_fold, preds_fold, reales_fold = res
+            probs.extend(p_fold)
+            preds.extend(preds_fold)
+            reales.extend(reales_fold)
 
     preds = np.array(preds); reales = np.array(reales); probs = np.array(probs)
     N = len(preds)

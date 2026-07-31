@@ -13,7 +13,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 
-def get_ticker_history(ticker: str, period: str = "5y", force_refresh: bool = False) -> pd.DataFrame:
+def get_ticker_history(ticker: str, period: str = "5y", force_refresh: bool = False, auto_adjust: bool = True) -> pd.DataFrame:
     """
     Descarga (o lee de caché local) el histórico de un ticker de Yahoo Finance.
 
@@ -25,26 +25,28 @@ def get_ticker_history(ticker: str, period: str = "5y", force_refresh: bool = Fa
         Periodo soportado por yfinance: '1d','5d','1mo','3mo','6mo','1y','2y','5y','10y','ytd','max'.
     force_refresh : bool
         Si True, ignora la caché y vuelve a descargar.
+    auto_adjust: bool
+        Si True (por defecto), ajusta los precios históricos por splits y dividendos. CRÍTICO para ML.
 
     Returns
     -------
     pd.DataFrame con columnas [Date, Open, High, Low, Close, Volume, Dividends, Stock Splits]
     """
     safe_name = ticker.replace("^", "").replace("=", "_").replace(".", "_")
-    cache_path = DATA_DIR / f"{safe_name}_{period}.csv"
+    adj_suffix = "_adj" if auto_adjust else ""
+    cache_path = DATA_DIR / f"{safe_name}_{period}{adj_suffix}.csv"
 
     if cache_path.exists() and not force_refresh:
         df = pd.read_csv(cache_path, parse_dates=["Date"])
         return df
 
     t = yf.Ticker(ticker)
-    hist = t.history(period=period, auto_adjust=False)
+    hist = t.history(period=period, auto_adjust=auto_adjust)
     hist = hist.reset_index()
     # Normalizar zona horaria a naive UTC
-    if pd.api.types.is_datetime64tz_dtype(hist["Date"]):
+    if isinstance(hist["Date"].dtype, pd.DatetimeTZDtype):
         hist["Date"] = hist["Date"].dt.tz_localize(None)
-    hist["Date"] = pd.to_datetime(hist["Date"]).dt.date
-    hist["Date"] = pd.to_datetime(hist["Date"])
+    hist["Date"] = pd.to_datetime(hist["Date"]).dt.normalize()
     hist.to_csv(cache_path, index=False)
     return hist
 

@@ -38,6 +38,9 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 - La de arriba (rank 1) es la 'mejor nota' del grupo.
 - La columna 'señal' te dice: COMPRAR (las mejores), EVITAR (las peores) o neutral.
 - Los números z son solo la posición dentro del grupo: + es bueno, − es malo.
+- **z_quality** = lo sólida que es la empresa. Dentro de esa nota mandan el **ROIC** (40%), el ROE (25%), el margen (20%) y la poca deuda (15%).
+- La columna **ROIC %** es lo que renta el capital que de verdad trabaja, mediana de varios años. Por encima de ~10% crea valor; por debajo lo destruye. Sale vacía en bancos, donde no aplica.
+- Puede pasar que una empresa con ROIC malo salga arriba: el ranking pesa también lo barata que está y su empuje. Mira la nota Y el ROIC, no solo el puesto.
 
 **👉 Qué hago con esto:** Úsala para PRESELECCIONAR. Quédate con las 2-3 de arriba y luego míralas a fondo en la pantalla ★ Veredicto.
 
@@ -110,6 +113,8 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **Qué significa lo que ves:**
 - Ordenadas por fuerza/empuje.
+- La columna **ROIC** y **Calidad** te dicen si además el NEGOCIO gana dinero: 'crea valor', 'ok' o 'destruye'. Vacío en bancos.
+- El Score **no** incluye el ROIC a propósito: mide empuje, no calidad. Sirve para cazar el caso 'sube mucho pero la empresa no gana dinero'.
 
 **👉 Qué hago con esto:** Para encontrar candidatas rápido. Luego confírmalas en el ★ Veredicto.
 

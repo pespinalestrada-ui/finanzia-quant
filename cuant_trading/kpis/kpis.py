@@ -268,6 +268,58 @@ def explicar(d, hist=None):
     return "\n".join(L)
 
 
+_CACHE_ROIC = {}
+_TTL_ROIC = 6 * 3600          # las cuentas anuales no cambian en todo el día
+
+
+def roic_ticker(ticker):
+    """ROIC (último ejercicio, mediana) sin pedir `.info`. Devuelve (ult, mediana, n).
+
+    Versión ligera de `historico()` para usarla en bucle sobre una watchlist: son
+    2 llamadas de red por ticker en vez de 3, y quedan cacheadas en el proceso.
+    Sobre 10 valores la diferencia es de segundos, no de milisegundos.
+
+    No hace falta mirar el sector: un banco no publica EBIT, así que el ROIC sale
+    NaN solo, sin necesidad de detectarlo. Devuelve NaN en vez de lanzar: en un
+    barrido, un valor raro no puede tumbar la tabla entera."""
+    import time as _t
+    tk = ticker.strip().upper()
+    hit = _CACHE_ROIC.get(tk)
+    if hit and (_t.time() - hit[0]) < _TTL_ROIC:
+        return hit[1]
+    fuera = (np.nan, np.nan, 0)
+    try:
+        t = yf.Ticker(tk)
+        inc, bs = t.income_stmt, t.balance_sheet
+        if inc is None or inc.empty or bs is None or bs.empty:
+            _CACHE_ROIC[tk] = (_t.time(), fuera)
+            return fuera
+        ebit = _fila(inc, "EBIT", "Operating Income")
+        tasa = _fila(inc, "Tax Rate For Calcs")
+        cap = _fila(bs, "Invested Capital")
+        if ebit is None or cap is None:
+            _CACHE_ROIC[tk] = (_t.time(), fuera)
+            return fuera
+        vals = []
+        for col in inc.columns:
+            if col not in cap.index:
+                continue
+            e, c = ebit.get(col), cap.get(col)
+            tt = tasa.get(col) if tasa is not None else None
+            if e is None or c is None or pd.isna(e) or pd.isna(c) or float(c) == 0:
+                continue
+            tt = float(tt) if tt is not None and not pd.isna(tt) else 0.21
+            vals.append(float(e) * (1 - tt) / float(c))
+        if not vals:
+            _CACHE_ROIC[tk] = (_t.time(), fuera)
+            return fuera
+        res = (float(vals[0]), float(np.median(vals)), len(vals))
+    except Exception:
+        res = fuera
+    _CACHE_ROIC[tk] = (_t.time(), res)
+    return res
+
+
 def pilar_calidad(ticker):
     """Pilar de CALIDAD para el Veredicto, basado en ROIC. Devuelve (score, lectura, w).
 

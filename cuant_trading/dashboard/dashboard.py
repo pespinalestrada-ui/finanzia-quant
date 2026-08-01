@@ -168,6 +168,11 @@ def tab_screener(txt):
         rows = [SCR.analizar(t) for t in _parse(txt)]
         rows = [r for r in rows if r]
         df = pd.DataFrame(rows).sort_values("Score", ascending=False).reset_index(drop=True)
+        # el ROIC no existe en bancos: Gradio pinta el NaN como "null", que parece
+        # un fallo. Solo esa columna pasa a texto; las demás siguen numéricas para
+        # que el ordenar por Score o momentum siga funcionando.
+        if "ROIC" in df.columns:
+            df["ROIC"] = df["ROIC"].map(lambda v: "" if pd.isna(v) else f"{v:.1f}")
         return df
     except Exception as e:
         return pd.DataFrame([{"Error": str(e)}])
@@ -788,7 +793,10 @@ def tab_factores(txt):
         if len(tickers) < 2:
             return pd.DataFrame(), "Mete **al menos 2** tickers: el ranking es relativo al universo."
         df = FS.rankear(tickers)
-        cols = ["rank", "ticker", "z_value", "z_momentum", "z_quality", "z_lowvol", "nota", "señal"]
+        if "_roic" in df.columns:
+            df["ROIC %"] = (df["_roic"] * 100).round(1)
+        cols = [c for c in ["rank", "ticker", "z_value", "z_momentum", "z_quality",
+                            "ROIC %", "z_lowvol", "nota", "señal"] if c in df.columns]
         out = df[cols].copy()
         for c in ["z_value", "z_momentum", "z_quality", "z_lowvol", "nota"]:
             out[c] = out[c].round(2)
@@ -796,8 +804,14 @@ def tab_factores(txt):
         md = (f"### Ranking multi-factor ({len(tickers)} acciones)\n"
               f"**Mejor:** {top} · **Peor:** {bot}. Nota = z-score cruzado ponderado "
               f"(value 30% · momentum 30% · quality 25% · low-vol 15%).\n\n"
+              f"**Dentro de calidad** mandan el ROIC (40%), el ROE (25%), el margen (20%) y "
+              f"la poca deuda (15%). Cada uno se estandariza ANTES de mezclarse: si se "
+              f"promedian en crudo, el que tiene la escala más grande se come a los demás. "
+              f"La columna **ROIC %** es la mediana de los ejercicios publicados (vacía en "
+              f"bancos, donde no aplica).\n\n"
               f"> Así rankean los fondos cuant/smart-beta. Factores = premios de riesgo de "
               f"LARGO plazo (Fama-French), no timing. Fundamentales faltantes = neutros. "
+              f"Ojo: el ranking es RELATIVO — el mejor de un grupo malo sigue siendo malo. "
               f"No es recomendación.")
         return out, md
     except Exception as e:

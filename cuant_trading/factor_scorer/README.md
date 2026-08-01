@@ -7,7 +7,9 @@ de **factores con premio de riesgo demostrado** (Fama-French y posteriores):
 
 - **Value** — barato vs fundamentales (earnings yield 1/PER, book-to-price).
 - **Momentum** — retorno 12-1 meses (lo que sube tiende a seguir). El más robusto.
-- **Quality** — ROE alto, márgenes, poca deuda.
+- **Quality** — **ROIC** alto (lo que renta el capital que trabaja; cuenta doble porque
+  es el único que no se infla con deuda), ROE, márgenes y poca deuda. Se usa la mediana
+  de los ejercicios publicados, no el último dato. Vacío en bancos: ahí el ROIC no aplica.
 - **Low-vol** — menor volatilidad → mejor rentabilidad ajustada a riesgo (anomalía).
 
 ## Dos modos

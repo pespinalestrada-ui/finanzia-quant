@@ -509,6 +509,21 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
             except Exception:
                 pass
 
+        # Calidad del negocio por ROIC. Se solapa EN PARTE con el "quality" del pilar
+        # de Factores, que usa ROE; se mantienen los dos a propósito porque miden cosas
+        # distintas: el ROE premia el apalancamiento y el ROIC no. Por eso el peso es
+        # proporcional a la convicción (un ROIC en el coste del capital casi no pesa):
+        # un pilar neutro de peso fijo empujaría TODOS los veredictos a MANTENER.
+        if not cripto:
+            try:
+                import kpis as KP
+                s_q, lec_q, w_q = KP.pilar_calidad(ticker)
+                if s_q is not None:
+                    pilares.append(("Calidad del negocio (ROIC)",
+                                    lec_q + f"  · peso {w_q*100:.0f}%", s_q, w_q))
+            except Exception:
+                pass                      # best-effort: nunca rompe el veredicto
+
         # Sentimiento FinBERT (opcional)
         if con_sentimiento:
             noticias = SN.extraer_noticias(ticker, 10)

@@ -50,6 +50,8 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 - Arriba, el veredicto en grande con un color: 🟢 comprar, 🟡 esperar, 🔴 vender.
 - La tabla son los 'motivos' (tendencia, fuerza, etc.). No hace falta entender cada fila.
 - MANTENER = ni claro sí ni claro no, mejor esperar.
+- Entre los motivos verás **Calidad del negocio (ROIC)**: mide si la empresa gana más de lo que le cuesta el dinero (~10%). Por encima crea valor, por debajo lo destruye, y avisa si va cayendo. Usa la mediana de 4 años, no el último dato.
+- Ese motivo **pesa según lo claro que esté**: una empresa del montón casi no cuenta, una que destruye valor sí. En bancos no aparece: el ROIC no aplica ahí.
 
 **👉 Qué hago con esto:** Es tu pantalla principal. Si dice MANTENER, no operes. NO es un consejo garantizado: es un resumen para ayudarte a decidir.
 

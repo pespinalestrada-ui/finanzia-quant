@@ -38,7 +38,7 @@ const grupos = [
   { n:"★ Veredicto", nv:"Básico",
     q:"La pantalla estrella. Analiza UNA empresa por todos lados y te da un resumen: COMPRAR, MANTENER o VENDER, con el porqué.",
     u:"Escribe una empresa (ej. AAPL) y pulsa 'Analizar TODO'. Los dos checkbox son opcionales (déjalos sin marcar al principio).",
-    ve:["Arriba, el veredicto en grande con un color: 🟢 comprar, 🟡 esperar, 🔴 vender.","La tabla son los 'motivos' (tendencia, fuerza, etc.). No hace falta entender cada fila.","MANTENER = ni claro sí ni claro no, mejor esperar."],
+    ve:["Arriba, el veredicto en grande con un color: 🟢 comprar, 🟡 esperar, 🔴 vender.","La tabla son los 'motivos' (tendencia, fuerza, etc.). No hace falta entender cada fila.","MANTENER = ni claro sí ni claro no, mejor esperar.","Entre los motivos verás **Calidad del negocio (ROIC)**: mide si la empresa gana más de lo que le cuesta el dinero (~10%). Por encima crea valor, por debajo lo destruye, y avisa si va cayendo. Usa la mediana de 4 años, no el último dato.","Ese motivo **pesa según lo claro que esté**: una empresa del montón casi no cuenta, una que destruye valor sí. En bancos no aparece: el ROIC no aplica ahí."],
     hacer:"Es tu pantalla principal. Si dice MANTENER, no operes. NO es un consejo garantizado: es un resumen para ayudarte a decidir." },
   { n:"🌡️ Mercado", nv:"Básico",
     q:"El 'tiempo' de la bolsa antes de mirar empresas: ¿hay miedo o codicia?, ¿está nervioso el mercado?",

@@ -268,6 +268,61 @@ def explicar(d, hist=None):
     return "\n".join(L)
 
 
+def pilar_calidad(ticker):
+    """Pilar de CALIDAD para el Veredicto, basado en ROIC. Devuelve (score, lectura, w).
+
+    Por qué ROIC y no ROE: el ROE se infla con deuda, y un pilar de calidad que
+    premie el apalancamiento premia justo lo contrario de lo que quiere medir.
+
+    Cómo puntúa
+    -----------
+    Nivel: se usa la MEDIANA de los ejercicios disponibles, no el último dato.
+    Un año bueno es suerte; la mediana resiste a un ejercicio raro.
+
+        score = (ROIC_mediano − 10%) / 15%     acotado a [−1, +1]
+
+    El 10% es el coste aproximado del capital: por debajo, cada euro reinvertido
+    vale menos de un euro (destruye valor); por encima, lo crea.
+
+    Tendencia: si el ROIC se ha desplomado (último < 60% del primero) se recorta
+    el score a la mitad. Caso real, XOM 2022-2025: ROIC de 22,7% a 9,7%. Puntuar
+    eso como negocio sano por su media seria enganarse.
+
+    Peso: PROPORCIONAL a la conviccion, igual que el pilar de forecast. Un ROIC
+    del 10% (ni fu ni fa) casi no participa. Si pesara fijo, meter un pilar
+    neutro dividiendo la suma de pesos empujaria TODOS los veredictos hacia
+    MANTENER, que es justo el fallo que ya se ha corregido otras veces aqui.
+
+    Devuelve (None, motivo, 0.0) cuando no aplica: bancos y aseguradoras no
+    tienen capital invertido industrial, y forzar un numero ahi seria inventarlo.
+    """
+    d = kpis(ticker)
+    if d["financiera"]:
+        return None, "no aplica (financiera: sin capital invertido industrial)", 0.0
+    if d["roic"] is None:
+        return None, (d["roic_nota"] or "sin datos de ROIC"), 0.0
+
+    hist = historico(ticker, 4)
+    serie = hist["ROIC %"].dropna() / 100.0 if not hist.empty and "ROIC %" in hist else pd.Series(dtype=float)
+    nivel = float(serie.median()) if len(serie) >= 2 else float(d["roic"])
+
+    score = max(-1.0, min(1.0, (nivel - 0.10) / 0.15))
+    nota = ""
+    if len(serie) >= 3 and serie.iloc[0] > 0 and serie.iloc[-1] < 0.6 * serie.iloc[0]:
+        # El castigo tiene que empeorar el score SIEMPRE. Un `score *= 0.5` a secas
+        # sube los negativos hacia cero: Intel, con el ROIC cayendo del 5% al 1%,
+        # salía premiada por desplomarse. Se ramifica por signo.
+        score = score * 0.5 if score > 0 else max(-1.0, score * 1.25)
+        nota = f" · ⚠️ en caída ({serie.iloc[0]*100:.0f}%→{serie.iloc[-1]*100:.0f}%)"
+
+    w = max(0.04, 0.12 * min(1.0, abs(score)))
+    calif = ("crea valor" if score > 0.33 else
+             "destruye valor" if score < -0.33 else "en el coste del capital")
+    lectura = (f"ROIC {nivel*100:.1f}% ({len(serie) if len(serie) else 1} ejerc., mediana) "
+               f"· {calif}{nota}")
+    return score, lectura, w
+
+
 def _plot(hist, nombre, financiera=False):
     """Evolución de los tres ratios.
 

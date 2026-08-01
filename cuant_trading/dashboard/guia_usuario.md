@@ -64,6 +64,21 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Míralo al empezar el día. Si hay pánico o euforia extrema, sé más prudente.
 
+### 💰 Rentabilidad  `[Básico]`
+**Para qué sirve:** Los cuatro números con los que se juzga si una empresa es un buen NEGOCIO (no si la acción va a subir): ROE, ROA, ROIC y BPA.
+
+**Cómo se usa:** Escribe una empresa y pulsa 'Medir rentabilidad'. En el segundo hueco puedes poner otras para compararlas, pero solo tiene sentido comparar empresas del MISMO sector.
+
+**Qué significa lo que ves:**
+- **ROE**: por cada 100 € que han puesto los dueños, cuánto gana al año. Es el más famoso y el más tramposo: sube solo con endeudarse.
+- **ROA**: por cada 100 € que la empresa mueve (suyos y prestados), cuánto gana. La deuda no lo maquilla.
+- **ROIC**: el más honesto. Lo que renta el dinero que de verdad trabaja en el negocio. Por encima de ~10% (lo que cuesta el capital) crea valor; por debajo, lo destruye.
+- **BPA**: cuánto beneficio toca a cada acción. El único en euros, no en %.
+- El aviso de **'el ROE es X veces el ROA'**: si sale 1-2 el ROE es negocio de verdad; si sale 5 o más, buena parte es deuda.
+- La gráfica saca 4 ejercicios: un año bueno es suerte, cuatro seguidos es un negocio.
+
+**👉 Qué hago con esto:** Úsalo para DESCARTAR, no para acertar. Son datos contables del pasado: dicen cómo ha ido la empresa, no hacia dónde va la acción. En bancos el ROIC no aplica y un ROA del 0,8% es normal, no un desastre.
+
 ### 8 · Sentimiento  `[Básico]`
 **Para qué sirve:** Lee las noticias recientes de una empresa y te dice si suenan buenas, malas o neutras.
 

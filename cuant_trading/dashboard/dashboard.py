@@ -42,7 +42,8 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "hmm_regime", SUITE / "meta_labeling", SUITE / "rmt_clean",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
-          SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget"]:
+          SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
+          SUITE / "kpis"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -1299,6 +1300,27 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return pd.DataFrame(), "**Error:** " + str(e)
 
 
+def tab_kpis(ticker, txt, anios):
+    """Los 4 KPI de rentabilidad: ROE, ROA, BPA y ROIC (este ultimo, calculado)."""
+    try:
+        import kpis as KP
+        tk = ticker.strip().upper()
+        d = KP.kpis(tk)
+        hist = KP.historico(tk, int(anios))
+        fig = KP._plot(hist, d["nombre"], financiera=d["financiera"])
+        comp = pd.DataFrame()
+        partes = [KP.explicar(d, hist), "\n---\n", KP.LEYENDA]
+        universo = [t.strip() for t in (txt or "").replace(",", " ").split() if t.strip()]
+        if universo:
+            comp = KP.comparar(universo)
+            partes.insert(1, "> **Ojo al comparar:** solo tiene sentido **dentro del mismo "
+                             "sector**. Un banco y una tecnologica no juegan al mismo juego: "
+                             "mira la columna Sector antes de sacar conclusiones.")
+        return fig, hist, comp, "\n\n".join(partes)
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_cargar_cartera_lp():
     """Lee cartera_lp.csv (acciones) y la convierte a pesos actuales para el Lab."""
     try:
@@ -1468,15 +1490,22 @@ def _tabs_del_codigo():
 
 
 def _guia_estado():
-    """Compara las pantallas reales con las documentadas. Devuelve (md_estado, nuevas)."""
-    _intro, secs = _guia_secciones()
-    documentadas = "\n".join(c for _t, c in secs)
+    """Compara las pantallas reales con las documentadas. Devuelve (md_estado, nuevas).
+
+    Se compara contra las CABECERAS de ficha (`### emoji Nombre`), no contra todo
+    el texto de la guía: buscando en el cuerpo, una pantalla llamada
+    '💰 Rentabilidad' daba por documentada porque la palabra 'rentabilidad'
+    aparece suelta en la prosa. Falso negativo, y una guía que dice 'al día'
+    cuando no lo está es peor que no tener aviso."""
+    import re as _re
+    f = HERE / "guia_usuario.md"
+    txt = f.read_text(encoding="utf-8") if f.exists() else ""
     reales = _tabs_del_codigo()
     def _norm(s):
-        import re as _re
         return _re.sub(r"[^a-z0-9]", "", s.lower())
-    doc_norm = _norm(documentadas)
-    nuevas = [(n, d) for n, d in reales if _norm(n)[:10] not in doc_norm]
+    fichas = {_norm(t) for t in _re.findall(r"^#{2,4}\s*(.+)$", txt, _re.M)}
+    nuevas = [(n, d) for n, d in reales
+              if not any(_norm(n) and _norm(n) in ficha for ficha in fichas)]
     if not reales:
         return "", []
     if not nuevas:
@@ -2100,6 +2129,23 @@ def build():
                         tbm1 = gr.Dataframe(label="Componentes Fear & Greed", wrap=True)
                         tbm2 = gr.Dataframe(label="Fundamentales", wrap=True)
                     bm.click(tab_mercado, [tm], [mdm, tbm1, tbm2])
+                with gr.Tab("💰 Rentabilidad"):
+                    gr.Markdown("**Los 4 KPI con los que se juzga un negocio**: **ROE** (renta del "
+                                "dinero del dueño), **ROA** (renta de todo lo que mueve), **ROIC** "
+                                "(renta del capital que trabaja) y **BPA** (beneficio por acción). "
+                                "El ROE se infla con deuda; por eso hay que verlos juntos. Datos de "
+                                "las cuentas anuales publicadas.")
+                    with gr.Row():
+                        tkp = gr.Textbox(value="AAPL", label="Ticker a analizar", scale=2)
+                        ukp = gr.Textbox(value=WL, label="Comparar con (opcional, mismo sector)", scale=3)
+                        akp = gr.Slider(3, 5, value=4, step=1, label="Ejercicios")
+                        bkp = gr.Button("Medir rentabilidad", variant="primary")
+                    figkp = gr.Plot(show_label=False)
+                    mdkp = gr.Markdown()
+                    with gr.Row():
+                        tbkp1 = gr.Dataframe(label="Año a año", wrap=True)
+                        tbkp2 = gr.Dataframe(label="Comparativa", wrap=True)
+                    bkp.click(tab_kpis, [tkp, ukp, akp], [figkp, tbkp1, tbkp2, mdkp])
                 with gr.Tab("🎯 Alpha"):
                     gr.Markdown("**¿Hay ventaja REAL?** Dirección a corto plazo con ML (LightGBM + features "
                                 "leak-free + Hurst, walk-forward purgado) + volatilidad GARCH. Mide con test de "

@@ -375,6 +375,73 @@ def pilar_calidad(ticker):
     return score, lectura, w
 
 
+def pilar_red(ticker):
+    """Pilar de CALIDAD para el Veredicto Cripto. Devuelve (score, lectura, peso).
+
+    NO es un ROIC ni pretende serlo: una cripto no tiene EBIT ni capital invertido
+    porque no es una empresa (comprobado: `income_stmt` y `balance_sheet` vienen
+    vacíos, y ROE/ROA/BPA vienen a None en BTC, ETH, SOL y ADA). Este pilar
+    responde a la MISMA pregunta que el ROIC —¿esto trata bien al que pone el
+    dinero?— pero con lo único que hay: datos de red.
+
+    Dos componentes
+    ---------------
+    1. **Liquidez** = volumen negociado en 24 h, en dólares ABSOLUTOS.
+
+       Se usa el volumen absoluto y no el turnover (volumen ÷ capitalización)
+       porque el turnover INVIERTE el orden: medido hoy, BTC sale el peor
+       (1,46%) y ADA el mejor (10,3%), cuando lo de ADA es rotación
+       especulativa. Lo que decide si puedes salir sin mover el precio son los
+       dólares que se cruzan, no su proporción. Escala logarítmica: 1 M$ es malo,
+       ~32 M$ neutro, 1.000 M$ bueno.
+
+       No se añade la capitalización como tercer componente: log(volumen) y
+       log(capitalización) correlacionan 0,98 en las 13 monedas medidas, así que
+       sería contar lo mismo dos veces.
+
+    2. **Dilución** = circulante ÷ suministro máximo. Lo que queda por emitir te
+       diluye, igual que una empresa que no para de sacar acciones nuevas. 95%
+       emitido es bueno; 65% es malo.
+
+       Si NO hay tope (ETH, SOL, DOGE) el componente queda NEUTRO, no negativo:
+       sin tope no significa inflación garantizada — Ethereum quema comisiones y
+       puede ser deflacionaria. Penalizarlo sería opinar, no medir.
+
+    Devuelve (None, motivo, 0.0) si el dato viene incompleto, que pasa (UNI-USD
+    daba volumen 0,0 M$ y capitalización 0,00 B$): un fallo de datos no puede
+    puntuar como si fuera una moneda ilíquida de verdad.
+    """
+    tk = ticker.strip().upper()
+    try:
+        info = yf.Ticker(tk).info or {}
+    except Exception as e:
+        return None, f"sin datos ({str(e)[:40]})", 0.0
+
+    vol = info.get("volume24Hr") or info.get("volume")
+    mc = info.get("marketCap")
+    if not vol or not mc or vol < 1e5 or mc < 1e6:
+        return None, "datos de red incompletos en la fuente", 0.0
+
+    s_liq = max(-1.0, min(1.0, (np.log10(float(vol)) - 7.5) / 1.5))
+    partes = [(s_liq, 0.6)]
+    txt = [f"volumen 24h {vol/1e6:,.0f} M$"]
+
+    circ, mx = info.get("circulatingSupply"), info.get("maxSupply")
+    if circ and mx and mx > 0:
+        rel = float(circ) / float(mx)
+        s_dil = max(-1.0, min(1.0, (rel - 0.80) / 0.15))
+        partes.append((s_dil, 0.4))
+        txt.append(f"{rel*100:.0f}% del máximo ya emitido")
+    else:
+        txt.append("sin tope de emisión (neutro: sin tope ≠ inflación)")
+
+    score = sum(s * w for s, w in partes) / sum(w for _, w in partes)
+    w = max(0.04, 0.12 * min(1.0, abs(score)))
+    calif = ("red sólida" if score > 0.33 else
+             "red frágil" if score < -0.33 else "en la media")
+    return float(score), " · ".join(txt) + f" → {calif}", float(w)
+
+
 def _plot(hist, nombre, financiera=False):
     """Evolución de los tres ratios.
 

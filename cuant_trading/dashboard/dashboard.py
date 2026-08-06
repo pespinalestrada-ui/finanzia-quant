@@ -545,6 +545,18 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
                 s_fg = max(-0.6, min(0.6, (50 - sc) / 50.0 * 0.6))   # miedo (+) / codicia (−)
                 pilares.append(("Fear & Greed cripto (contrarian)", f"{sc} · {cr['etiqueta']}", s_fg, 0.12))
 
+            # Equivalente cripto del pilar de calidad. NO es un ROIC: una cripto no
+            # tiene cuentas anuales. Mide la fontanería de la red (liquidez para poder
+            # salir y dilución pendiente), que es lo único medible aquí.
+            try:
+                import kpis as KP
+                s_r, lec_r, w_r = KP.pilar_red(ticker)
+                if s_r is not None:
+                    pilares.append(("Calidad de la red (liquidez y dilución)",
+                                    lec_r + f"  · peso {w_r*100:.0f}%", s_r, w_r))
+            except Exception:
+                pass                  # best-effort: nunca rompe el veredicto
+
         # --- agregación ponderada ----------------------------------------------
         wsum = sum(p[3] for p in pilares)
         total = sum(p[2] * p[3] for p in pilares) / wsum

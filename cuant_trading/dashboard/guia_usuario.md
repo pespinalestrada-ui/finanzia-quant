@@ -205,6 +205,9 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 **Qué significa lo que ves:**
 - Igual que el Veredicto normal: COMPRAR / MANTENER / VENDER.
 - Incluye el 'miedo y codicia' del mundo cripto.
+- Aquí **no** verás el motivo de calidad por ROIC: una cripto no tiene cuentas anuales, así que no hay ROIC que calcular. No es un olvido.
+- En su lugar está **Calidad de la red**, que mide dos cosas que sí existen: cuánto **volumen** mueve al día (si es poco, no podrás salir sin hundir el precio) y cuánto queda **por emitir** (lo que falta te diluye, como una empresa que no para de sacar acciones).
+- Ojo: eso mide la *fontanería*, no si la moneda vale algo. Una memecoin muy negociada puntúa bien aquí y sigue siendo una memecoin.
 
 **👉 Qué hago con esto:** Recuerda que la cripto se mueve muchísimo más: ve con más cuidado y menos dinero.
 

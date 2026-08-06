@@ -43,7 +43,7 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
-          SUITE / "kpis"]:
+          SUITE / "kpis", SUITE / "veredicto_tune"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -378,7 +378,7 @@ def _mape_de_tabla(tab):
     return 10.0
 
 
-def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10000, registrar=True, cripto=False):
+def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10000, registrar=True, cripto=False, perfil=None):
     """
     Agrega forecast (consenso multi-modelo opcional) + batería técnica completa
     + volumen + sentimiento en un veredicto COMPRAR / MANTENER / VENDER.
@@ -391,6 +391,21 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
     try:
         ticker = ticker.strip().upper()
         pilares = []  # (nombre, lectura, score, peso)
+        # Pesos tecnicos y umbral del PERFIL elegido. Por defecto, la configuracion
+        # del proyecto: es la unica que no se eligio optimizando sobre estos datos,
+        # y por eso es la unica que no esta sobreajustada a ellos.
+        _pesos_tec = {"tend": 0.15, "adx": 0.08, "osc": 0.14,
+                      "macd": 0.08, "mom": 0.12, "obv": 0.05}
+        _umbral = 0.35
+        _perfil_info = None
+        if perfil and not str(perfil).startswith("ACTUAL"):
+            try:
+                import veredicto_tune as VT
+                _p, _u, _info = VT.perfil_por_nombre(perfil)
+                if _info:
+                    _pesos_tec, _umbral, _perfil_info = dict(_p), float(_u), _info
+            except Exception:
+                pass
         notas_modelos = ""
         factor_score_val = None   # nota de factores, para el auto-log del diario
 
@@ -461,12 +476,12 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
         sma50, sma200 = float(last["SMA50"]), float(last["SMA200"])
         s_tend = (0.6 if (not np.isnan(sma200) and sma50 > sma200) else -0.6 if not np.isnan(sma200) else 0.0)
         s_tend += 0.4 if px > sma50 else -0.4
-        pilares.append(("Tendencia (SMA50/200 + precio)", "ALCISTA" if s_tend > 0 else "BAJISTA" if s_tend < 0 else "MIXTA", s_tend, 0.15))
+        pilares.append(("Tendencia (SMA50/200 + precio)", "ALCISTA" if s_tend > 0 else "BAJISTA" if s_tend < 0 else "MIXTA", s_tend, _pesos_tec["tend"]))
 
         # ADX: fuerza de tendencia (gate). Solo cuenta si la tendencia es fuerte.
         adx_v = float(last["ADX"]); dir_adx = 1 if last["DI_POS"] > last["DI_NEG"] else -1
         s_adx = dir_adx * 0.7 if adx_v > 25 else 0.0
-        pilares.append(("ADX (fuerza tendencia)", f"{adx_v:.0f} ({'FUERTE ' + ('alcista' if dir_adx>0 else 'bajista') if adx_v>25 else 'débil/lateral'})", s_adx, 0.08))
+        pilares.append(("ADX (fuerza tendencia)", f"{adx_v:.0f} ({'FUERTE ' + ('alcista' if dir_adx>0 else 'bajista') if adx_v>25 else 'débil/lateral'})", s_adx, _pesos_tec["adx"]))
 
         # Hurst: detección de régimen
         hurst_v = last.get("HURST", float("nan"))
@@ -480,11 +495,11 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
         cci_v = float(last["CCI"]); votos.append(1 if cci_v < -100 else -1 if cci_v > 100 else 0)
         s_osc = float(np.mean(votos))
         n_sv = sum(1 for v in votos if v > 0); n_sc = sum(1 for v in votos if v < 0)
-        pilares.append(("Osciladores (RSI/Estoc/W%R/MFI/CCI)", f"{n_sv} sobreventa · {n_sc} sobrecompra de 5", s_osc, 0.14))
+        pilares.append(("Osciladores (RSI/Estoc/W%R/MFI/CCI)", f"{n_sv} sobreventa · {n_sc} sobrecompra de 5", s_osc, _pesos_tec["osc"]))
 
         macd_l, macd_s = float(last["MACD"]), float(last["MACD_sig"])
         s_macd = 0.5 if macd_l > macd_s else -0.5
-        pilares.append(("MACD", "alcista" if s_macd > 0 else "bajista", s_macd, 0.08))
+        pilares.append(("MACD", "alcista" if s_macd > 0 else "bajista", s_macd, _pesos_tec["macd"]))
 
         win_mom = 90 if cripto else 63        # cripto cotiza 7d: ~90 filas = 3 meses naturales
         mom3 = (px / float(c.iloc[-win_mom]) - 1) * 100 if len(c) > win_mom else 0.0
@@ -492,11 +507,11 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
             mom3 = 0.0
         # cripto es más volátil → normaliza con divisor mayor para no saturar el score
         s_mom = max(-1.0, min(1.0, mom3 / (25.0 if cripto else 15.0)))
-        pilares.append(("Momentum 3 meses", f"{mom3:+.1f} %", s_mom, 0.12))
+        pilares.append(("Momentum 3 meses", f"{mom3:+.1f} %", s_mom, _pesos_tec["mom"]))
 
         # OBV: dirección del flujo de volumen
         obv_up = df["OBV"].iloc[-1] > df["OBV"].iloc[-10]
-        pilares.append(("OBV (volumen)", "flujo subiendo" if obv_up else "flujo bajando", 0.4 if obv_up else -0.4, 0.05))
+        pilares.append(("OBV (volumen)", "flujo subiendo" if obv_up else "flujo bajando", 0.4 if obv_up else -0.4, _pesos_tec["obv"]))
 
         # Señales del scanner
         tech = SS.señales_ticker(ticker)
@@ -562,9 +577,9 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
         total = sum(p[2] * p[3] for p in pilares) / wsum
 
         # --- veredicto por umbral (el régimen NO vetea, solo avisa) -----------
-        if total >= 0.35:
+        if total >= _umbral:
             verd, emoji = "COMPRAR", "🟢"
-        elif total <= -0.35:
+        elif total <= -_umbral:
             verd, emoji = "VENDER", "🔴"
         else:
             verd, emoji = "MANTENER", "🟡"
@@ -576,6 +591,17 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
                 and verd != "MANTENER" and abs(total) < 0.45):
             notas_modelos += (f"\n\n> ⚠️ Mercado lateral (Hurst={hurst_v:.2f}, ADX={adx_v:.0f}<20): "
                               f"señal {verd} MENOS fiable — usa tamaño reducido.")
+
+        # Un perfil que no aguanta fuera de su universo tiene que decirlo cada vez
+        # que se usa, no solo cuando se elige: si no, se olvida.
+        if _perfil_info is not None:
+            _v = _perfil_info.get("validacion") or {}
+            _et = _perfil_info.get("etiqueta", "")
+            notas_modelos += (f"\n\n> ⚙️ Configuración **{_perfil_info['nombre']}** "
+                              f"({_et}). Fuera del universo con el que se eligió acierta "
+                              f"**{_v.get('tasa', float('nan'))*100:.1f}%** con Sharpe "
+                              f"**{_v.get('sharpe', float('nan')):+.2f}**. "
+                              f"{_perfil_info.get('aviso', '')}")
 
         # --- Plan sugerido (entrada/stop/nº acciones) + registro opcional ------
         capital = float(capital) if capital else 10000.0
@@ -1608,6 +1634,46 @@ def _wl_save(txt):
             *([limpio] * 11))
 
 
+def _perfiles_opciones():
+    """Nombres de las configuraciones elegibles, con su etiqueta de validación
+    pegada al nombre: si eliges una que se cae fuera de muestra, lo sabes al
+    elegirla, no después."""
+    try:
+        import veredicto_tune as VT
+        ps = VT.listar_perfiles()
+        if ps:
+            return [f"{p['nombre']} — {p['etiqueta']}" for p in ps]
+    except Exception:
+        pass
+    return ["ACTUAL (por defecto) — ✅ referencia"]
+
+
+def _perfiles_aviso():
+    try:
+        import veredicto_tune as VT
+        ps = VT.listar_perfiles()
+        buenas = [p for p in ps if p["etiqueta"].startswith("✅") and p.get("busqueda")]
+        n_busq = len([p for p in ps if p.get("busqueda")])
+        if not ps:
+            return ""
+        if buenas:
+            return (f"> De {n_busq} configuraciones buscadas, **{len(buenas)}** aguantan en "
+                    f"valores que no se usaron para elegirlas. Las demás están marcadas.")
+        return (f"> ⚠️ **Ninguna de las {n_busq} configuraciones buscadas mejora a la actual.** "
+                f"Todas suben su acierto en el universo donde se eligieron y se desinflan "
+                f"fuera. Están ahí para que lo veas, no para que las uses: es la demostración "
+                f"de por qué buscar la 'mejor' configuración encuentra ruido.")
+    except Exception:
+        return ""
+
+
+def tab_veredicto_perfil(ticker, period, con_sentimiento, con_modelos, capital, registrar, perfil):
+    """Adaptador: el desplegable trae 'nombre — etiqueta'; se corta la etiqueta."""
+    nombre = str(perfil or "").split(" — ")[0]
+    return tab_veredicto(ticker, period, con_sentimiento, con_modelos, capital,
+                         registrar, False, nombre)
+
+
 def _topbar_datos():
     """Datos REALES para la barra superior: si los mercados están abiertos ahora
     y el último precio del primer valor de la watchlist. Si algo falla, se queda
@@ -1688,13 +1754,20 @@ def build():
                         cv = gr.Number(value=10000, label="Tu capital €")
                         bv = gr.Button("Analizar TODO", variant="primary")
                     with gr.Row():
+                        _perf = _perfiles_opciones()
+                        cfgv = gr.Dropdown(_perf, value=_perf[0], label="Configuración de pesos",
+                                           scale=3, info="Cada una lleva su etiqueta: lo que "
+                                           "importa es cómo se porta FUERA del universo con "
+                                           "el que se eligió.")
+                    gr.Markdown(_perfiles_aviso())
+                    with gr.Row():
                         rv = gr.Checkbox(value=True, label="Si sale COMPRAR/VENDER, apuntarlo en el 📒 Diario (simulado)")
                         sv = gr.Checkbox(value=False, label="Incluir noticias (sentimiento; 1ª vez +1 min)")
                         mv = gr.Checkbox(value=False, label="Consenso multi-modelo (informativo, +2 min)")
                     mdv = gr.Markdown()
                     tbv = gr.Dataframe(label="Detalle técnico (opcional)", wrap=True)
                     plv = gr.Plot(show_label=False)
-                    bv.click(tab_veredicto, [tv, pv, sv, mv, cv, rv], [plv, tbv, mdv])
+                    bv.click(tab_veredicto_perfil, [tv, pv, sv, mv, cv, rv, cfgv], [plv, tbv, mdv])
                 with gr.Tab("🪙 Veredicto Cripto"):
                     gr.Markdown("**Veredicto para criptomonedas** (BTC-USD, ETH-EUR, SOL-USD…). "
                                 "Mismo agregador pero con **forecast diario 7d**, momentum en días "

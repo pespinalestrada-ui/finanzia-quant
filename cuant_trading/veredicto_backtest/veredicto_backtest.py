@@ -57,8 +57,12 @@ def descargar(ticker, period="6y"):
     return h
 
 
-def score_historico(df):
-    """Score técnico del Veredicto en [-1,+1] para CADA fila, point-in-time (leak-free)."""
+def componentes(df):
+    """Las 6 series-pilar del score, SIN ponderar, point-in-time (leak-free).
+
+    Se expone aparte para poder barrer configuraciones de pesos sin recalcular los
+    indicadores en cada una: los indicadores se calculan una vez por ticker y cada
+    configuración se queda en un producto escalar."""
     d = IND.calcular_todos(df.copy())
     c = d["Close"]
     # tendencia
@@ -81,12 +85,25 @@ def score_historico(df):
     # OBV (pendiente 10 sesiones)
     s_obv = np.where(d["OBV"] > d["OBV"].shift(10), 0.4, -0.4)
 
-    score = (PESOS["tend"] * s_tend + PESOS["adx"] * s_adx + PESOS["osc"] * s_osc
-             + PESOS["macd"] * s_macd + PESOS["mom"] * s_mom + PESOS["obv"] * s_obv) / WSUM
-    s = pd.Series(score, index=d.index)
+    comp = pd.DataFrame({"tend": s_tend, "adx": s_adx, "osc": s_osc, "macd": s_macd,
+                         "mom": s_mom, "obv": s_obv}, index=d.index)
     # invalida las primeras filas sin SMA200/indicadores completos
-    s[d["SMA200"].isna() | d["ADX"].isna()] = np.nan
-    return s
+    comp[d["SMA200"].isna() | d["ADX"].isna()] = np.nan
+    return comp
+
+
+def score_historico(df, pesos=None):
+    """Score técnico del Veredicto en [-1,+1] para CADA fila, point-in-time (leak-free)."""
+    p = pesos or PESOS
+    comp = componentes(df)
+    return score_de_componentes(comp, p)
+
+
+def score_de_componentes(comp, pesos=None):
+    """Combina las series-pilar ya calculadas con un juego de pesos."""
+    p = pesos or PESOS
+    wsum = sum(p.values()) or 1.0
+    return sum(p.get(k, 0.0) * comp[k] for k in comp.columns) / wsum
 
 
 def _psr(sr, T, skew, kurt, sr_bench=0.0):

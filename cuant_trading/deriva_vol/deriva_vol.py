@@ -52,8 +52,9 @@ import pandas as pd
 import yfinance as yf
 
 # paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py)
-_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
-_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+_NEU, _ACC, _ACC2 = "#9aa0b5", "#8271e0", "#a99bf0"
+_UP, _DOWN, _GOLD, _DIM = "#3fa87c", "#d4615c", "#ab7f28", "#6f7486"
+_CIAN, _AMB, _ROSA = "#2d9ec4", "#ab7f28", "#c25b86"
 
 
 def medir(ticker, period="10y"):

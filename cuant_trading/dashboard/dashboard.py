@@ -49,7 +49,8 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
 # (fondo oscuro, Inter, rejilla tenue, sin cajas). `C` es la paleta compartida.
 from finanzia_charts import (C, style, band, marker, zonas_rsi, msg_fig,
-                             colorbar, CMAP_CORR, CMAP_SEQ)
+                             colorbar, area, punto_final, eje_miles,
+                             CMAP_CORR, CMAP_SEQ)
 
 import yfinance as yf
 import forecast_tool                       # app/forecast_tool.py
@@ -139,10 +140,14 @@ def tab_indicadores(ticker, period):
         tabla = pd.DataFrame(IND.señales_dict(df), columns=["Indicador", "Valor", "Señal"])
         d = df.iloc[-260:]
         fig, ax = plt.subplots(3, 1, figsize=(11, 8), sharex=True, gridspec_kw={"height_ratios":[3,1,1]})
-        ax[0].plot(d["Date"], d["Close"], color=C.text, lw=1.5, label="Cierre")
         band(ax[0], d["Date"], d["BB_lo"], d["BB_up"], label="Bollinger 20·2σ", alpha=0.10)
+        area(ax[0], d["Date"], d["Close"].values, color=C.acc, alpha=0.22,
+             base=float(d["BB_lo"].min()))
+        ax[0].plot(d["Date"], d["Close"], color=C.text, lw=2.0, label="Cierre")
         ax[0].plot(d["Date"], d["SMA50"], color=C.gold, lw=1.2, label="SMA 50")
         ax[0].plot(d["Date"], d["SMA200"], color=C.neutral_d, lw=1.2, label="SMA 200")
+        punto_final(ax[0], d["Date"].iloc[-1], float(d["Close"].iloc[-1]),
+                    f"{float(d['Close'].iloc[-1]):,.2f}".replace(",", "."), C.text)
         style(ax[0], titulo=f"{ticker.upper()} — precio + Bollinger + SMA",
               kicker="PRECIO · BOLLINGER · SMA · RSI · MACD")
         ax[1].plot(d["Date"], d["RSI"], color=C.acc_light, lw=1.3)
@@ -205,9 +210,11 @@ def tab_backtest(ticker, strat, fast, slow, period):
                f"| Operaciones | {m['trades']} | 1 |\n\n"
                f"**{'BATE' if m['ret_total']>bh['ret_total'] else 'NO bate'} a buy&hold.**")
         fig, ax = plt.subplots(figsize=(11, 5))
-        ax.plot(h["Date"], eb, color=C.neutral, lw=1.3, label=f"Buy&Hold (x{eb.iloc[-1]:.2f})")
-        ax.plot(h["Date"], es, color=C.acc, lw=2.0, label=f"{strat.upper()} (x{es.iloc[-1]:.2f})")
+        ax.plot(h["Date"], eb, color=C.neutral, lw=1.6, label=f"Buy&Hold (x{eb.iloc[-1]:.2f})")
+        area(ax, h["Date"], es.values, color=C.acc, base=float(min(es.min(), eb.min())))
+        ax.plot(h["Date"], es, color=C.acc, lw=2.2, label=f"{strat.upper()} (x{es.iloc[-1]:.2f})")
         ax.axhline(1, color=C.neutral_d, ls="--", lw=1)
+        punto_final(ax, h["Date"].iloc[-1], float(es.iloc[-1]), f"x{es.iloc[-1]:.2f}", C.acc)
         style(ax, titulo=f"{ticker.upper()} — equity de 1 €",
               kicker=f"BACKTEST · {period} · COSTES 0,1% POR OPERACIÓN")
         fig.tight_layout()
@@ -236,7 +243,7 @@ def tab_corr(txt, period):
                 ax.text(j, i, f"{corr.values[i,j]:.2f}", ha="center", va="center", fontsize=8,
                         color=C.bg if abs(corr.values[i,j]) > 0.55 else C.neutral)
         colorbar(fig, im, ax)
-        style(ax, titulo="Diversificación: cuanto más verde, mejor cubre",
+        style(ax, titulo="Diversificación: cuanto más azul, mejor cubre",
               kicker=f"CORRELACIÓN DE RETORNOS DIARIOS · {period}", legend=False)
         ax.grid(False); fig.tight_layout()
         return fig, corr.round(2).reset_index()

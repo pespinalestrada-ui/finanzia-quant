@@ -34,9 +34,15 @@ warnings.filterwarnings("ignore")
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "cuant_trading" / "dashboard"))
 
 import yfinance as yf
 from prophet import Prophet
+
+try:
+    from finanzia_charts import style as _STYLE
+except Exception:
+    _STYLE = None
 
 HORIZONS = [30, 90, 120]          # días
 MAX_H = max(HORIZONS)
@@ -257,6 +263,9 @@ def _plot(df, fcst, ticker, filas):
     ax.set_title(f"{ticker} — Forecast 30/90/120 días hábiles (Prophet, banda 80 %)")
     ax.set_xlabel("Fecha"); ax.set_ylabel("Precio")
     ax.legend(loc="upper left", fontsize=9)
+    if _STYLE is not None:
+        _STYLE(ax, titulo=f"{ticker} - Forecast 30/90/120 dias habiles",
+               kicker="Prophet - banda 80 %", ylabel="Precio", xlabel="Fecha")
     fig.tight_layout()
     return fig
 
@@ -341,7 +350,20 @@ def _run_ui(ticker, period):
 
 def build_app():
     import gradio as gr
-    with gr.Blocks(title="FinanzIA — Herramienta de Forecasting") as app:
+    try:
+        from finanzia_theme import HEAD, THEME, CSS, TOPBAR_HTML
+    except Exception:
+        HEAD, THEME, CSS, TOPBAR_HTML = None, None, None, None
+
+    blocks_kwargs = {"title": "FinanzIA — Herramienta de Forecasting"}
+    if HEAD is not None:
+        blocks_kwargs.update(head=HEAD, theme=THEME, css=CSS)
+
+    with gr.Blocks(**blocks_kwargs) as app:
+        if TOPBAR_HTML is not None:
+            gr.HTML(TOPBAR_HTML(kicker="Herramienta de Forecasting",
+                                mercados=False, ticker="", capital="",
+                                nota="Yahoo Finance · Prophet"))
         gr.Markdown("# FinanzIA — Herramienta de Forecasting")
         gr.Markdown("Introduce un **ticker** de Yahoo Finance (ej. `SAB.MC`, `AAPL`, `^IBEX`, `BTC-EUR`). "
                     "Proyección a 30 / 90 / 120 días hábiles con nivel de confianza e informe.")

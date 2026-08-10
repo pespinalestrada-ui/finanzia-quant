@@ -50,8 +50,9 @@ CRISIS = {
 
 # paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py):
 # sobre fondo oscuro el negro y el azul puro no se ven
-_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
-_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+_NEU, _ACC, _ACC2 = "#9aa0b5", "#8271e0", "#a99bf0"
+_UP, _DOWN, _GOLD, _DIM = "#3fa87c", "#d4615c", "#ab7f28", "#6f7486"
+_CIAN, _AMB, _ROSA = "#2d9ec4", "#ab7f28", "#c25b86"
 
 
 def descargar(ticker, period="20y"):
@@ -300,14 +301,20 @@ def _plot(df, meta):
     import matplotlib.pyplot as plt
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(11, 7), sharex=True,
                                    gridspec_kw={"height_ratios": [2.2, 1]})
-    ax1.plot(df.index, df["curva_bh"], color=_NEU, lw=1.3, label="Comprar y mantener")
-    ax1.plot(df.index, df["curva_est"], color=_ACC, lw=1.6, label="Volatilidad objetivo")
+    ax1.plot(df.index, df["curva_bh"], color=_NEU, lw=1.6, label="Comprar y mantener")
+    ax1.plot(df.index, df["curva_est"], color=_ACC, lw=2.3, label="Volatilidad objetivo")
+    ax1.plot([df.index[-1]], [df["curva_est"].iloc[-1]], "o", ms=8, mfc=_ACC,
+             mec="#171a25", mew=2.2, zorder=7, clip_on=False)
     ax1.set_yscale("log"); ax1.set_ylabel("Valor de 1 € (log)")
     ax1.set_title(f"{meta['ticker']} · volatilidad objetivo {meta['objetivo']*100:.0f}% "
                   f"({meta['metodo']}, costes {meta['coste_bps']}bps)")
     ax1.legend(loc="upper left")
-    ax2.fill_between(df.index, df["exposicion"] * 100, color=_ACC, alpha=0.35)
-    ax2.plot(df.index, df["exposicion"] * 100, color=_ACC, lw=0.8)
+    for _i in range(24):
+        _f0, _f1 = _i / 24, (_i + 1) / 24
+        ax2.fill_between(df.index, df["exposicion"] * 100 * _f0,
+                         df["exposicion"] * 100 * _f1, color=_ACC,
+                         alpha=0.42 * (1 - _f0) ** 1.6, linewidth=0)
+    ax2.plot(df.index, df["exposicion"] * 100, color=_ACC2, lw=1.1)
     ax2.set_ylabel("% invertido"); ax2.set_xlabel("Fecha"); ax2.set_ylim(0, max(105, meta["max_exp"] * 105))
     fig.tight_layout()
     return fig

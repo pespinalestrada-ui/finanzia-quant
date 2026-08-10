@@ -52,8 +52,9 @@ except ImportError:
     import options_greeks as OG
 
 # paleta Nocturne (la misma de cuant_trading/dashboard/finanzia_charts.py)
-_NEU, _ACC, _ACC2 = "#b2b6ca", "#9184d9", "#b5abfc"
-_UP, _DOWN, _GOLD, _DIM = "#63b58e", "#d9736b", "#c9b273", "#75798c"
+_NEU, _ACC, _ACC2 = "#9aa0b5", "#8271e0", "#a99bf0"
+_UP, _DOWN, _GOLD, _DIM = "#3fa87c", "#d4615c", "#ab7f28", "#6f7486"
+_CIAN, _AMB, _ROSA = "#2d9ec4", "#ab7f28", "#c25b86"
 
 _CACHE = {}
 _TTL = 900          # 15 min: la cadena se mueve, pero no cada segundo
@@ -267,26 +268,32 @@ def _plot(res, met):
               ylabel="Volatilidad implícita %")
     a1.legend(fontsize=8.5, ncol=2, frameon=False, labelcolor=_NEU)
 
-    # --- 2. estructura temporal: ATM y sesgo
+    # --- 2. estructura temporal.
+    # ATM y sesgo van en el MISMO eje, los dos en puntos de volatilidad. Antes
+    # esto era un doble eje (twinx) con el sesgo a la derecha, y un doble eje
+    # es una gráfica que miente: dos escalas distintas hacen que dos curvas se
+    # crucen o se separen según dónde decidas poner el cero, no según el dato.
     t = met["tabla"].dropna(subset=["IV ATM %"])
-    a2.plot(t["Días"], t["IV ATM %"], marker="o", ms=5, lw=1.9, color=_ACC,
-            label="Volatilidad implícita ATM")
-    if np.isfinite(met["realizada"]):
-        a2.axhline(met["realizada"] * 100, color=_NEU, ls="--", lw=1.4,
-                   label=f"Realizada {met['realizada']*100:.1f}% (1 año)")
+    a2.plot(t["Días"], t["IV ATM %"], marker="o", lw=2.2, color=_ACC,
+            mfc=_ACC, mec="#171a25", mew=2, label="Implícita ATM")
+    if len(t):
+        a2.annotate(f"{t['IV ATM %'].iloc[-1]:.1f}%",
+                    xy=(t["Días"].iloc[-1], t["IV ATM %"].iloc[-1]),
+                    xytext=(9, 0), textcoords="offset points", color=_ACC,
+                    fontsize=11, fontweight="semibold", va="center",
+                    annotation_clip=False)
     ts = met["tabla"].dropna(subset=["Sesgo (pp)"])
     if len(ts) > 1:
-        a2b = a2.twinx()
-        a2b.plot(ts["Días"], ts["Sesgo (pp)"], marker="s", ms=4, lw=1.5, ls=":", color=_GOLD)
-        a2b.set_ylabel("sesgo (puntos)", color=_GOLD, fontsize=10)
-        a2b.tick_params(colors=_GOLD, labelsize=9)
-        a2b.grid(False)
-        for s in a2b.spines.values():
-            s.set_visible(False)
+        a2.plot(ts["Días"], ts["Sesgo (pp)"], marker="s", ms=6, lw=2.0,
+                color=_AMB, mfc=_AMB, mec="#171a25", mew=2,
+                label="Sesgo put−call (puntos)")
+    if np.isfinite(met["realizada"]):
+        a2.axhline(met["realizada"] * 100, color=_NEU, ls="--", lw=1.5,
+                   label=f"Realizada {met['realizada']*100:.1f}% (1 año)")
     if style:
-        style(a2, titulo="Estructura temporal: implícita vs lo que se mueve de verdad",
-              kicker="ATM POR PLAZO (violeta) · SESGO (oro, eje derecho)",
-              xlabel="Días al vencimiento →", ylabel="Volatilidad %")
+        style(a2, titulo="Por plazo: lo implícito, el sesgo y lo que se movió de verdad",
+              kicker="TODO EN PUNTOS DE VOLATILIDAD · UN SOLO EJE",
+              xlabel="Días al vencimiento →", ylabel="Puntos de volatilidad")
     fig.tight_layout()
     return fig
 

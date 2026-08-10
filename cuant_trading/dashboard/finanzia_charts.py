@@ -29,7 +29,27 @@ from matplotlib.colors import LinearSegmentedColormap as _LSC
 
 
 class C:
-    """Paleta Nocturne. Un acento; verde/rojo solo donde hay semántica."""
+    """Paleta Nocturne, VALIDADA (no elegida a ojo).
+
+    Los cuatro colores categóricos pasan las cinco comprobaciones del validador
+    sobre la superficie oscura #171a25: banda de luminosidad OKLCH 0.48-0.67,
+    suelo de croma, separación bajo daltonismo (ΔE≥8), suelo de visión normal
+    (ΔE≥15) y contraste ≥3:1.
+
+    La paleta anterior FALLABA cuatro de las cinco. El caso más sangrante estaba
+    en la pantalla de KPI: el oro del ROE y el neutro del ROA tenían ΔE 11,5 en
+    visión NORMAL — dos series de la misma gráfica que costaba distinguir sin
+    tener ningún problema de vista.
+
+    Verde y rojo quedan FUERA del set categórico a propósito: entre ellos es
+    imposible pasar la prueba de daltonismo (ΔE 4,7 deutan) y no tiene arreglo
+    con color. Se usan solo como ESTADO, y siempre con un segundo canal que
+    aguante por sí solo: el signo respecto al cero en las barras del MACD, las
+    líneas de 70/30 en el RSI, la palabra COMPRAR/VENDER en el veredicto.
+
+    Orden categórico FIJO: violeta → cian → ámbar → rosa. Nunca se cicla ni se
+    reasigna: el color pertenece a la serie, no a su puesto en el ranking.
+    """
     # el fondo de la figura debe casar con el de los bloques del panel: la
     # gráfica va sin caja propia (.plot es transparente), así que si no coincide
     # se ve la costura del PNG dentro de la tarjeta
@@ -40,24 +60,42 @@ class C:
     axis      = "#8b8fa3"
     dim       = "#6d7183"
     text      = "#e9e9ed"
-    acc       = "#9184d9"   # serie principal
-    acc_light = "#b5abfc"   # serie secundaria del mismo rol
-    acc_dim   = "#5d5294"   # líneas de apoyo, bandas
-    neutral   = "#b2b6ca"   # histórico, benchmark
-    neutral_d = "#75798c"
-    up        = "#63b58e"   # verde desaturado
-    down      = "#d9736b"
-    gold      = "#c9b273"   # tercera serie (SMA rápida, señal MACD)
-    # ciclo por defecto: acento, neutro, oro, verde, rojo, acento claro
-    cycle = [acc, neutral, gold, up, down, acc_light]
+
+    # --- categóricos, en orden fijo (validados) --------------------------
+    acc       = "#8271e0"   # 1 · violeta — la serie protagonista
+    cian      = "#2d9ec4"   # 2
+    ambar     = "#ab7f28"   # 3
+    rosa      = "#c25b86"   # 4
+    # el 5º no se inventa un tono: se agrupa en "otros" o se parte la gráfica
+
+    # --- referencia recesiva: gris a propósito, no compite con las series --
+    neutral   = "#9aa0b5"   # histórico, comprar-y-mantener, benchmark
+    neutral_d = "#6f7486"
+
+    # --- estado (NUNCA solos: llevan posición, línea o etiqueta) ----------
+    up        = "#3fa87c"
+    down      = "#d4615c"
+
+    # apoyos del mismo violeta (bandas, sombreados): misma familia, no serie
+    acc_light = "#a99bf0"
+    acc_dim   = "#4b3f86"
+    gold      = ambar       # nombre viejo, mantenido para no romper llamadas
+
+    # ciclo por defecto = el orden categórico. Gris y estados quedan fuera:
+    # se piden por nombre cuando significan algo.
+    cycle = [acc, cian, ambar, rosa]
 
 
 # --- rampas de color para heatmaps y nubes de puntos ----------------------
-# correlación: verde (negativa, protege) → superficie (0) → violeta (positiva)
+# Divergente = DOS tonos y un gris neutro en medio. Nunca un tono en el centro
+# y nunca un arcoíris: si el punto medio tiene color, el ojo lee un cambio donde
+# solo hay cero. Cian (correlación negativa, diversifica) → gris → ámbar
+# (positiva, se mueven juntos). Cian/ámbar es frío/cálido y aguanta daltonismo.
 CMAP_CORR = _LSC.from_list("nocturne_corr",
-                           [C.up, "#3c7a63", C.panel, "#6b60a8", C.acc_light])
-# secuencial (Sharpe, densidad): del gris de superficie al acento claro
-CMAP_SEQ = _LSC.from_list("nocturne_seq", [C.neutral_d, C.acc_dim, C.acc, "#d2cefd"])
+                           ["#1d6f8c", C.cian, "#4a4f5e", C.ambar, "#7d5a17"])
+# Secuencial = UN tono, de claro a oscuro. Magnitud, no identidad.
+CMAP_SEQ = _LSC.from_list("nocturne_seq",
+                          ["#2a2740", C.acc_dim, C.acc, C.acc_light, "#ddd6ff"])
 try:
     _mpl.colormaps.register(CMAP_CORR, name="nocturne_corr", force=True)
     _mpl.colormaps.register(CMAP_SEQ, name="nocturne_seq", force=True)
@@ -88,9 +126,11 @@ RC = {
     "axes.spines.right": False,
     "axes.spines.left": False,
     "axes.prop_cycle": _mpl.cycler(color=C.cycle),
+    # rejilla RECESIVA: tiene que estar, pero por detrás. Si compite con el
+    # dato, deja de ser referencia y pasa a ser ruido.
     "grid.color": C.grid_soft,
-    "grid.linewidth": 0.8,
-    "grid.alpha": 1.0,
+    "grid.linewidth": 0.9,
+    "grid.alpha": 0.55,
     "xtick.color": C.dim,
     "ytick.color": C.dim,
     "xtick.labelsize": 10,
@@ -112,9 +152,16 @@ RC = {
     "legend.handletextpad": 0.6,
     "legend.columnspacing": 1.8,
     "legend.loc": "upper left",
-    "lines.linewidth": 1.7,
+    "lines.linewidth": 2.0,          # trazo fino pero con presencia
     "lines.solid_capstyle": "round",
+    "lines.solid_joinstyle": "round",
+    "lines.markersize": 8,           # el marcador tiene que poder pincharse
+    "lines.markeredgewidth": 2.0,
     "patch.edgecolor": "none",
+    # OJO: nada de savefig.bbox="tight" aquí. Las etiquetas al final de cada
+    # línea caen FUERA del eje, y con bbox tight matplotlib agranda el lienzo
+    # sin pintar de fondo la zona nueva: sale un rectángulo negro en la esquina.
+    # El aire se reserva con ax.margins() en cada gráfica.
     "image.cmap": "nocturne_seq",
     "date.autoformatter.month": "%b",
     "date.autoformatter.day": "%d %b",
@@ -190,6 +237,75 @@ def band(ax, x, lo, hi, label=None, color=None, alpha=0.17):
     """Banda de confianza (forecast, percentiles)."""
     return ax.fill_between(x, lo, hi, color=color or C.acc, alpha=alpha,
                            linewidth=0, label=label, zorder=1)
+
+
+def area(ax, x, y, color=None, alpha=0.34, base=None):
+    """Relleno DEGRADADO bajo una línea: denso pegado al trazo, disuelto abajo.
+
+    Es lo que separa una línea suelta de una gráfica con cuerpo. Truco correcto:
+    se pinta una imagen con degradado vertical y se RECORTA con el polígono de
+    la curva. Apilar franjas con `fill_between`, que es lo que se suele hacer,
+    deja escalones y una mancha turbia en la base — probado y descartado.
+
+    Va por debajo del trazo (zorder bajo) y muy transparente: aporta volumen,
+    no compite con el dato ni ensucia la rejilla."""
+    import numpy as _np
+    from matplotlib.patches import Polygon as _Poly
+    import matplotlib.colors as _mc
+    import matplotlib.dates as _mdates
+
+    y = _np.asarray(y, dtype=float)
+    xs = _np.asarray(x)
+    if xs.dtype.kind in "Mm" or hasattr(xs.flat[0] if xs.size else None, "toordinal"):
+        xn = _mdates.date2num(xs)                    # fechas → número
+    else:
+        xn = xs.astype(float)
+
+    ok = _np.isfinite(y) & _np.isfinite(xn)
+    if ok.sum() < 2:
+        return
+    xn, y = xn[ok], y[ok]
+    b = float(_np.nanmin(y)) if base is None else float(base)
+    tope = float(_np.nanmax(y))
+    if tope <= b:
+        return
+
+    rgb = _mc.to_rgb(color or C.acc)
+    grad = _np.empty((256, 1, 4))
+    grad[:, :, :3] = rgb
+    # opacidad al cuadrado: se apaga rápido hacia abajo, no deja bloque de color
+    grad[:, :, 3] = (_np.linspace(0.0, 1.0, 256) ** 2 * alpha)[:, None]
+
+    im = ax.imshow(grad, extent=[xn.min(), xn.max(), b, tope], origin="lower",
+                   aspect="auto", zorder=0.6, interpolation="bilinear")
+    verts = _np.column_stack([_np.r_[xn, xn[::-1]],
+                              _np.r_[y, _np.full_like(y, b)]])
+    im.set_clip_path(_Poly(verts, closed=True, transform=ax.transData))
+
+
+def punto_final(ax, x, y, texto=None, color=None, ha="left"):
+    """Marca el último dato: punto con anillo del color del fondo + etiqueta.
+
+    El anillo (`mec` del color de la superficie) es el 'surface ring' que separa
+    el punto de lo que tenga debajo. La etiqueta va al lado, no encima: una cifra
+    en cada punto satura, una en el que importa informa."""
+    col = color or C.acc
+    ax.plot([x], [y], "o", ms=8, mfc=col, mec=C.panel, mew=2.2, zorder=7,
+            clip_on=False)
+    if texto:
+        ax.annotate(texto, xy=(x, y), xytext=(9 if ha == "left" else -9, 0),
+                    textcoords="offset points", ha=ha, va="center",
+                    color=col, fontsize=11, fontweight="semibold",
+                    zorder=8, annotation_clip=False)
+
+
+def eje_miles(ax, eje="y", sufijo=""):
+    """Miles con punto y decimales con coma, como se escriben aquí."""
+    def _f(v, _p):
+        s = f"{v:,.0f}".replace(",", ".")
+        return s + sufijo
+    (ax.yaxis if eje == "y" else ax.xaxis).set_major_formatter(
+        _mpl.ticker.FuncFormatter(_f))
 
 
 def marker(ax, x, y, texto, color=None):

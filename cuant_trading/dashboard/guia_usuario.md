@@ -401,6 +401,19 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Antes de tocar una opción, mira Theta: si es alta, el tiempo juega en tu contra. Es el único apartado que trata derivados; el resto de la app son acciones.
 
+### 🛡️ Cobertura  `[Intermedio]`
+**Para qué sirve:** Poner un SUELO a lo que puedes perder en una posición, que es lo que hace una aerolínea cuando compra el queroseno por adelantado. Te dice cuánto cuesta el seguro y si compensa.
+
+**Cómo se usa:** Escribe el activo, cuántas acciones tienes, cuánta caída aceptas (el suelo) y a cuántos días. Pulsa Calcular cobertura.
+
+**Qué significa lo que ves:**
+- **Put protectora**: pagas una prima y a cambio no pierdes más del suelo. El techo de ganancia sigue intacto. Es un seguro.
+- **Collar**: la misma put, pagada vendiendo una call. Casi gratis, pero renuncias a la subida por encima del techo. Es lo que hacen las empresas de verdad.
+- **Llevar menos**: sin opciones ni primas, simplemente invertir una parte. Sale el porcentaje que te deja la misma pérdida máxima en la peor caída que ese activo ha tenido de verdad.
+- La gráfica es el resultado según dónde acabe el precio: fíjate en cómo la línea sin cubrir se va al fondo mientras las cubiertas se aplanan.
+
+**👉 Qué hago con esto:** Mira el **coste anualizado** de la put. Si sale por encima del 6-8%, protegerte todo el año se come la rentabilidad que esperas de la bolsa: el seguro sale más caro que el riesgo. Cubrirse tiene sentido cuando NO PUEDES permitirte la caída (tienes que vender pronto), no cuando crees que va a pasar.
+
 ### 🔔 Colas gordas  `[Intermedio]`
 **Para qué sirve:** Cuánto miente la campana de Gauss con tus activos. Casi toda la estadística financiera de manual supone que los días extremos son rarísimos. No lo son.
 

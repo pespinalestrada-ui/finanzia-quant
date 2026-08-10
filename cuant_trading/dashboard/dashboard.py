@@ -43,7 +43,7 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
-          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas"]:
+          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas", SUITE / "cobertura"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -1367,6 +1367,18 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return pd.DataFrame(), "**Error:** " + str(e)
 
 
+def tab_cobertura(ticker, acciones, suelo, techo, dias):
+    """Poner un suelo a una posicion: put, collar o llevar menos."""
+    try:
+        import cobertura as CB
+        p = CB.plan(ticker.strip().upper(), int(acciones), float(suelo),
+                    int(dias), float(techo))
+        c = CB.curva(p)
+        return CB._plot(p, c), CB.tabla(p), CB.explicar(p)
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_colas(txt, period):
     """Curtosis y colas gordas: cuantas veces fallo el modelo normal."""
     try:
@@ -2247,6 +2259,24 @@ def build():
                     tbdv = gr.Dataframe(label="Resultado", wrap=True)
                     mddv = gr.Markdown()
                     bdv.click(tab_deriva_vol, [tdv, pdv, mdv_modo, advj], [figdv, tbdv, mddv])
+                with gr.Tab("🛡️ Cobertura"):
+                    gr.Markdown("**Poner un suelo a una posición, como una aerolínea con el "
+                                "queroseno.** Tres formas y lo que cuesta cada una: comprar "
+                                "una **put** (seguro clásico), montar un **collar** (la put "
+                                "pagada vendiendo una call, renunciando a la subida) o "
+                                "simplemente **llevar menos** sin pagar prima. La comparación "
+                                "es el punto: la prima es un coste cierto.")
+                    with gr.Row():
+                        tcb = gr.Textbox(value="AAPL", label="Activo", scale=2)
+                        ncb = gr.Number(value=200, label="Nº de acciones")
+                        scb = gr.Slider(3, 30, value=10, step=1, label="Suelo: % de caída que aceptas")
+                        kcb = gr.Slider(3, 30, value=10, step=1, label="Techo: % de subida al que renuncias")
+                        dcb = gr.Slider(30, 365, value=90, step=15, label="Días de cobertura")
+                        bcb = gr.Button("Calcular cobertura", variant="primary")
+                    figcb = gr.Plot(show_label=False)
+                    tbcb = gr.Dataframe(label="Las cuatro opciones, comparadas", wrap=True)
+                    mdcb = gr.Markdown()
+                    bcb.click(tab_cobertura, [tcb, ncb, scb, kcb, dcb], [figcb, tbcb, mdcb])
                 with gr.Tab("⏳ OU óptimo"):
                     gr.Markdown("**¿Cuándo cerrar exactamente?** Calibra el 'muelle' (Ornstein-Uhlenbeck) "
                                 "de un par y calcula el **umbral de salida óptimo** por acoplamiento suave "

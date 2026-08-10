@@ -43,7 +43,7 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
-          SUITE / "kpis", SUITE / "veredicto_tune"]:
+          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -1367,6 +1367,38 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return pd.DataFrame(), "**Error:** " + str(e)
 
 
+def tab_deriva_vol(txt, period, apalancado):
+    """Lema de Ito: cuanta rentabilidad compuesta se come la volatilidad."""
+    try:
+        import deriva_vol as DV
+        tks = [x.strip().upper() for x in (txt or "").replace(",", " ").split() if x.strip()]
+        if not tks:
+            return _err_fig("Escribe al menos un activo."), pd.DataFrame(), ""
+        tb = DV.tabla(tks, period)
+        datos = []
+        for tk in tks:
+            try:
+                datos.append(DV.medir(tk, period))
+            except Exception:
+                pass
+        if not datos:
+            return _err_fig("Sin histórico suficiente."), tb, "Sin datos."
+        partes = [DV.explicar(d) for d in datos]
+        if apalancado:
+            c = DV.curva_apalancamiento(tks[0], period)
+            fig = DV._plot(datos, curva=c)
+            partes.insert(0, DV.explicar_apalancamiento(c))
+        else:
+            fig = DV._plot(datos)
+        partes.append("> **Por qué está esto aquí:** es el término −σ²/2 del lema de Itô, el "
+                      "mismo que ya usaba la simulación de 🎲 Monte Carlo sin que nada lo "
+                      "midiera. Y es la razón matemática de que 🛞 Vol objetivo funcione: "
+                      "bajar la volatilidad no solo reduce el susto, reduce la resta.")
+        return fig, tb, "\n\n".join(partes)
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_kpis(ticker, txt, anios):
     """Los 4 KPI de rentabilidad: ROE, ROA, BPA y ROIC (este ultimo, calculado)."""
     try:
@@ -2140,6 +2172,23 @@ def build():
                     mdop = gr.Markdown()
                     tblop = gr.Dataframe(wrap=True)
                     bop.click(tab_opciones, [top, tipop, kop, dop, vop, rop], [tblop, mdop])
+                with gr.Tab("📉 Deriva vol."):
+                    gr.Markdown("**Lo que la volatilidad se come cada año** (lema de Itô). "
+                                "La rentabilidad que se publica es la **media**; la que "
+                                "compones de verdad es la media **menos σ²/2**. Cuanto más se "
+                                "mueve un activo, más se separan. Explica por qué los ETF x3 "
+                                "decaen y por qué bajar volatilidad hace ganar más compuesto.")
+                    with gr.Row():
+                        tdv = gr.Textbox(value="SPY, QQQ, TQQQ, BTC-USD",
+                                         label="Activos a comparar", scale=4)
+                        pdv = gr.Dropdown(["5y", "10y", "max"], value="10y", label="Histórico")
+                        adv = gr.Checkbox(value=False,
+                                          label="Curva de apalancamiento del primero")
+                        bdv = gr.Button("Medir", variant="primary")
+                    figdv = gr.Plot(show_label=False)
+                    tbdv = gr.Dataframe(label="Media vs compuesto", wrap=True)
+                    mddv = gr.Markdown()
+                    bdv.click(tab_deriva_vol, [tdv, pdv, adv], [figdv, tbdv, mddv])
                 with gr.Tab("⏳ OU óptimo"):
                     gr.Markdown("**¿Cuándo cerrar exactamente?** Calibra el 'muelle' (Ornstein-Uhlenbeck) "
                                 "de un par y calcula el **umbral de salida óptimo** por acoplamiento suave "

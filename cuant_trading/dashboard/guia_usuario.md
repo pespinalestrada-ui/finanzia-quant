@@ -401,6 +401,18 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Antes de tocar una opción, mira Theta: si es alta, el tiempo juega en tu contra. Es el único apartado que trata derivados; el resto de la app son acciones.
 
+### 📉 Deriva vol.  `[Intermedio]`
+**Para qué sirve:** Cuánta rentabilidad se te come la volatilidad cada año. La rentabilidad que se publica es la MEDIA; la que de verdad acumulas es más baja, y la diferencia crece muy rápido con lo que se mueve el activo.
+
+**Cómo se usa:** Escribe varios activos separados por comas y pulsa Medir. Marca la casilla para ver, además, hasta cuánto apalancamiento aguanta el primero.
+
+**Qué significa lo que ves:**
+- Dos barras por activo: la **media anual** (lo que se publica) y el **CAGR real** (lo que te llevas). Encima, los puntos que se pierden.
+- SPY se deja 0,6 puntos al año; TQQQ se deja **15,9**. La diferencia entre ambos no es la rentabilidad: es la volatilidad.
+- La curva de apalancamiento tiene forma de campana: hay un punto óptimo y, pasado otro, apalancar te deja PEOR que no apalancar.
+
+**👉 Qué hago con esto:** Es la razón matemática de que 🛞 Vol objetivo funcione: bajar la volatilidad no solo quita sustos, sube lo que acumulas. Y explica por qué un ETF x3 puede perder a largo plazo aunque el índice suba. Ojo: los apalancamientos que salen son OPTIMISTAS (no cuentan intereses ni comisiones).
+
 ### ⏳ OU óptimo  `[Avanzado]`
 **Para qué sirve:** Para pares (dos activos que van de la mano): calcula el 'muelle' que los une y te dice el momento EXACTO de cerrar, con matemáticas en vez de a ojo.
 

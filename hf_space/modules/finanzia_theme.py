@@ -42,10 +42,13 @@ GOLD        = "#c9b273"
 HEAD = ('<meta name="google" content="notranslate">'
         '<script>document.documentElement.lang="es";</script>'
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+        # Plus Jakarta Sans para la interfaz (cifras tabulares, buen peso 500/600)
+        # y JetBrains Mono para los números de las tablas: alinean en columna.
         '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
-        'family=Inter:wght@400;500;600&display=swap">'
+        'family=Plus+Jakarta+Sans:wght@400;500;600;700&'
+        'family=JetBrains+Mono:wght@400;500&display=swap">'
         '<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1'
-        '/src/regular/style.css">')
+        '/src/light/style.css">')
 
 
 def _build_theme():
@@ -54,7 +57,7 @@ def _build_theme():
     import gradio as gr
     try:
         fonts = dict(
-            font=[gr.themes.GoogleFont("Inter"), "system-ui", "sans-serif"],
+            font=[gr.themes.GoogleFont("Plus Jakarta Sans"), "system-ui", "sans-serif"],
             font_mono=[gr.themes.GoogleFont("JetBrains Mono"), "Consolas", "monospace"],
         )
     except Exception:
@@ -148,19 +151,43 @@ THEME = _build_theme()
 CSS = """
 /* ---- Mesa cuantitativa · Nocturne ------------------------------------- */
 :root {
-  --nb: #161826; --ns: #232532; --nbar: #13151f; --nt: #e9e9ed;
+  --nb: #12141f; --ns: #1b1d2a; --nbar: #0e101a; --nt: #e9e9ed;
   --na: #9184d9; --na3: #d2cefd; --na7: #5d5294; --na9: #2b2741;
   --n4: #b2b6ca; --n5: #9397ab; --n6: #75798c; --n7: #595d6c;
   --n8: #3f424d; --n9: #292b31; --ndiv: rgba(233,233,237,.16);
+  /* curva de movimiento: masa y frenada, no una rampa lineal */
+  --eas: cubic-bezier(.32,.72,0,1);
+  /* hairlines: luz por arriba, sombra por abajo. Nada de bordes grises planos */
+  --hair: rgba(255,255,255,.07);
+  --hair-fuerte: rgba(255,255,255,.11);
+  --realce: inset 0 1px 0 rgba(255,255,255,.055);
 }
 .gradio-container { max-width: 1580px !important; margin: 0 auto !important;
-  font-variant-numeric: tabular-nums; }
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv05" 1, "ss01" 1; }
 .gradio-container, body { background: var(--nb) !important; }
 
+/* Profundidad: dos halos de acento MUY tenues fijos al fondo. Dan volumen a la
+   página sin coste de repintado (elemento fijo, sin eventos). */
+body::before { content: ""; position: fixed; inset: 0; z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(58rem 34rem at 12% -8%, rgba(145,132,217,.10), transparent 62%),
+    radial-gradient(46rem 30rem at 105% 4%, rgba(99,181,142,.045), transparent 60%); }
+.gradio-container { position: relative; z-index: 1; }
+
+/* Grano finísimo: rompe las bandas de los degradados y quita el plano digital.
+   Fijo y sin eventos, como manda el rendimiento. */
+body::after { content: ""; position: fixed; inset: 0; z-index: 2;
+  pointer-events: none; opacity: .022;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
 /* barra superior fina: marca, estado de mercado, ticker, capital ---------- */
-#topbar { display: flex; align-items: center; gap: 14px; height: 46px;
-  padding: 0 16px; margin: 0 0 11px 0; background: var(--nbar);
-  border-bottom: 1px solid var(--ndiv); border-radius: 8px 8px 0 0;
+#topbar { display: flex; align-items: center; gap: 14px; height: 52px;
+  padding: 0 18px; margin: 0 0 12px 0; border-radius: 14px;
+  background: linear-gradient(180deg, #1a1d2b, #131622);
+  border: 1px solid var(--hair);
+  box-shadow: var(--realce), 0 14px 34px -26px #000;
   overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 #topbar::-webkit-scrollbar { display: none; }
 #topbar > * { flex: none; white-space: nowrap; }
@@ -170,8 +197,10 @@ CSS = """
 #topbar .brand i.sep { width: 1px; height: 12px; background: var(--n7); }
 #topbar .brand span { font-size: 11px; letter-spacing: .14em;
   text-transform: uppercase; color: var(--n5); }
-#topbar .chip { display: flex; align-items: center; gap: 7px; padding: 4px 9px;
-  border-radius: 6px; background: var(--n9); font-size: 11.5px; color: var(--n4); }
+#topbar .chip { display: flex; align-items: center; gap: 7px; padding: 5px 11px;
+  border-radius: 999px; background: rgba(255,255,255,.045);
+  border: 1px solid var(--hair); box-shadow: var(--realce);
+  font-size: 11.5px; color: var(--n4); }
 #topbar .chip .dot { width: 6px; height: 6px; border-radius: 50%;
   background: var(--n6); }
 #topbar .chip.mkt-open .dot { background: #63b58e;
@@ -183,82 +212,154 @@ CSS = """
 #topbar .chip.tk .up { color: #63b58e; }
 #topbar .chip.tk .dn { color: #d9736b; }
 #topbar .right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-#topbar .disc { font-size: 10.5px; line-height: 46px; color: var(--n6);
+#topbar .disc { font-size: 10.5px; line-height: 52px; color: var(--n6);
   max-width: 400px; overflow: hidden; text-overflow: ellipsis; text-align: right; }
 @media (max-width: 1200px) { #topbar .disc { display: none; } }
 @keyframes nbpulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
 
 /* pestañas: grupo con subrayado de acento, subpestañas como chips --------- */
-div[role='tablist'] { gap: 2px; border-bottom: 1px solid var(--ndiv);
+div[role='tablist'] { gap: 2px; border-bottom: 1px solid var(--hair);
   flex-wrap: wrap; }
 div[role='tablist'] > button[role='tab'] { font-weight: 500; font-size: 13.5px;
-  padding: 0 13px; height: 40px; background: transparent; border: 0;
-  border-bottom: 2px solid transparent; border-radius: 0; color: var(--n4);
-  white-space: nowrap; transition: color .15s, border-color .15s; }
+  letter-spacing: -.005em; padding: 0 14px; height: 42px; background: transparent;
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  color: var(--n5); white-space: nowrap;
+  transition: color .34s var(--eas), border-color .34s var(--eas); }
 div[role='tablist'] > button[role='tab']:hover { color: var(--nt);
   border-bottom-color: var(--n7); background: transparent; }
-div[role='tablist'] > button[role='tab'].selected { color: var(--na);
+div[role='tablist'] > button[role='tab'].selected { color: var(--nt);
   border-bottom-color: var(--na); background: transparent; }
-/* segundo nivel (las subpestañas dentro de cada grupo) */
-.tabitem div[role='tablist'] { border-bottom: 1px solid var(--ndiv);
-  padding: 7px 0; gap: 3px; }
-.tabitem div[role='tablist'] > button[role='tab'] { height: 28px; padding: 0 10px;
-  font-size: 12.5px; border-radius: 6px; border-bottom: 0; color: var(--n5); }
-.tabitem div[role='tablist'] > button[role='tab']:hover { background: var(--n9);
-  color: var(--nt); border-bottom: 0; }
-.tabitem div[role='tablist'] > button[role='tab'].selected { background: var(--na9);
-  border: 1px solid var(--na7); color: var(--na3); border-bottom: 1px solid var(--na7); }
+/* segundo nivel: chips con bisel, no rectángulos planos */
+.tabitem div[role='tablist'] { border-bottom: 1px solid var(--hair);
+  padding: 8px 0; gap: 4px; }
+.tabitem div[role='tablist'] > button[role='tab'] { height: 30px; padding: 0 12px;
+  font-size: 12.5px; border-radius: 999px; border: 1px solid transparent;
+  border-bottom: 1px solid transparent; color: var(--n5);
+  transition: background .34s var(--eas), color .34s var(--eas),
+              border-color .34s var(--eas); }
+.tabitem div[role='tablist'] > button[role='tab']:hover {
+  background: rgba(255,255,255,.04); color: var(--nt); }
+.tabitem div[role='tablist'] > button[role='tab'].selected {
+  background: linear-gradient(180deg, rgba(145,132,217,.26), rgba(145,132,217,.14));
+  border: 1px solid rgba(145,132,217,.42); color: #efedff;
+  box-shadow: var(--realce), 0 1px 10px -4px rgba(145,132,217,.7); }
 
-/* botones: el primario es un contorno de acento, nunca un relleno --------- */
-button.primary, button.secondary { border-radius: 6px !important;
-  font-weight: 500 !important; white-space: nowrap;
-  transition: background .15s, border-color .15s, color .15s; }
-button.primary { background: transparent !important;
-  border: 1px solid var(--na) !important; color: var(--na3) !important; }
-button.primary:hover { background: var(--na9) !important; }
-button.primary:active { background: var(--na7) !important; color: #f5f4ff !important; }
-button.secondary { background: transparent !important;
-  border: 1px solid var(--n8) !important; color: var(--n4) !important; }
-button.secondary:hover { background: var(--n9) !important; color: var(--nt) !important; }
+/* Bisel anidado: cada bloque es una bandeja con una pieza dentro. Es lo que
+   separa "div con borde gris" de "componente físico". ---------------------- */
+.block { background: linear-gradient(180deg, #1e2130, #191b27) !important;
+  border: 1px solid var(--hair) !important; border-radius: 14px !important;
+  box-shadow: var(--realce), 0 12px 28px -22px rgba(0,0,0,.9) !important; }
+.block:has(> .block), .form { background: transparent !important;
+  border-color: transparent !important; box-shadow: none !important; }
+
+/* botones: píldora, con luz propia arriba y hundimiento al pulsar --------- */
+button.primary, button.secondary { border-radius: 999px !important;
+  font-weight: 600 !important; letter-spacing: -.005em; white-space: nowrap;
+  padding: 10px 22px !important;
+  /* una píldora de 1.500 px de ancho no es un botón, es una barra: se limita
+     para que el que va solo en su fila siga pareciendo un botón */
+  max-width: 360px !important;
+  transition: background .34s var(--eas), border-color .34s var(--eas),
+              color .34s var(--eas), transform .18s var(--eas),
+              box-shadow .34s var(--eas); }
+button.primary { color: #f2f0ff !important;
+  background: linear-gradient(180deg, rgba(145,132,217,.30), rgba(145,132,217,.16)) !important;
+  border: 1px solid rgba(145,132,217,.5) !important;
+  box-shadow: var(--realce), 0 6px 18px -10px rgba(145,132,217,.85) !important; }
+button.primary:hover {
+  background: linear-gradient(180deg, rgba(145,132,217,.44), rgba(145,132,217,.24)) !important;
+  box-shadow: var(--realce), 0 10px 26px -10px rgba(145,132,217,1) !important; }
+button.primary:active { transform: scale(.978); }
+button.secondary { background: rgba(255,255,255,.035) !important;
+  border: 1px solid var(--hair-fuerte) !important; color: var(--n4) !important;
+  box-shadow: var(--realce) !important; }
+button.secondary:hover { background: rgba(255,255,255,.07) !important;
+  color: var(--nt) !important; }
+button.secondary:active { transform: scale(.978); }
 button:focus-visible, input:focus-visible, select:focus-visible,
 textarea:focus-visible, [role='tab']:focus-visible {
   outline: 2px solid var(--na) !important; outline-offset: 2px; }
 ::selection { background: var(--na9); color: var(--nt); }
 
-/* formularios compactos -------------------------------------------------- */
-.block label > span, label > span[data-testid] { font-size: 11px !important;
-  letter-spacing: .06em; text-transform: uppercase; color: var(--n5) !important; }
+/* formularios: etiqueta microscópica arriba, campo hundido --------------- */
+.block label > span, label > span[data-testid] { font-size: 10px !important;
+  letter-spacing: .14em; text-transform: uppercase; font-weight: 600 !important;
+  color: var(--n6) !important; }
 input[type='text'], input[type='number'], textarea, select,
 .gradio-container input:not([type='range']):not([type='checkbox']):not([type='radio']) {
-  background: var(--nb) !important; border: 1px solid var(--n8) !important;
-  color: var(--nt) !important; border-radius: 6px !important; font-size: 13px !important; }
+  background: rgba(0,0,0,.28) !important; border: 1px solid var(--hair) !important;
+  color: var(--nt) !important; border-radius: 10px !important;
+  font-size: 13.5px !important; padding: 9px 12px !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.35) !important;
+  transition: border-color .34s var(--eas), box-shadow .34s var(--eas); }
+input[type='text']:focus, input[type='number']:focus, textarea:focus {
+  border-color: rgba(145,132,217,.55) !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.35),
+              0 0 0 3px rgba(145,132,217,.14) !important; }
 input[type='range'] { accent-color: var(--na); }
 input[type='checkbox'], input[type='radio'] { accent-color: var(--na); }
 
-/* datos: cifras tabulares, cabecera tenue, filas con hover --------------- */
-table { font-size: 13px; font-variant-numeric: tabular-nums; }
-table thead th { font-size: 11px !important; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--n5) !important;
-  background: var(--ns) !important; font-weight: 500 !important; }
-tbody tr { transition: background .12s; }
-tbody tr:hover { background: var(--na9); }
-table td, table th { border-color: var(--n9) !important; }
+/* datos: la tabla es el producto, así que respira y se lee ---------------- */
+table { font-size: 13px; font-variant-numeric: tabular-nums;
+  border-collapse: separate !important; border-spacing: 0 !important; }
+table thead th { font-size: 9.5px !important; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--n6) !important; font-weight: 600 !important;
+  background: rgba(255,255,255,.028) !important; padding: 11px 14px !important;
+  border-bottom: 1px solid var(--hair-fuerte) !important; }
+table td { padding: 10px 14px !important; border-bottom: 1px solid rgba(255,255,255,.045) !important;
+  border-left: 0 !important; border-right: 0 !important; border-top: 0 !important; }
+table td:not(:first-child) { font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px; letter-spacing: -.02em; }
+tbody tr { transition: background .22s var(--eas); }
+tbody tr:hover { background: rgba(145,132,217,.10) !important; }
+tbody tr:last-child td { border-bottom: 0 !important; }
 
-/* markdown didáctico: jerarquía por tamaño y espacio, no por negritas ---- */
-.prose { color: #cfd3e5; font-size: 13px; text-wrap: pretty; }
-.prose strong { color: var(--nt); font-weight: 500; }
-.prose h1, .prose h2, .prose h3 { letter-spacing: -.015em; font-weight: 500;
-  color: var(--nt); }
-.prose h3 { font-size: 15px; }
-.prose a { color: var(--na3); text-decoration: none; }
+/* markdown: jerarquía por tamaño y aire, no por negritas ------------------ */
+.prose { color: #c3c8dc; font-size: 13.5px; line-height: 1.62; text-wrap: pretty; }
+.prose strong { color: var(--nt); font-weight: 600; }
+.prose h1, .prose h2, .prose h3, .prose h4 { letter-spacing: -.022em;
+  font-weight: 600; color: #f4f4f8; }
+.prose h1 { font-size: 25px; margin: 2px 0 10px; }
+.prose h2 { font-size: 19px; margin: 22px 0 8px; }
+.prose h3 { font-size: 15.5px; margin: 18px 0 6px; }
+.prose a { color: var(--na3); text-decoration: none;
+  border-bottom: 1px solid rgba(210,206,253,.3); }
 .prose a:hover { color: var(--na); }
-.prose code { background: var(--n9); color: var(--na3); border-radius: 4px;
-  padding: 1px 5px; }
+.prose code { background: rgba(255,255,255,.06); color: var(--na3);
+  border: 1px solid var(--hair); border-radius: 5px; padding: 1px 6px;
+  font-size: 12px; }
+/* la cita es el aviso honesto: que se note como una franja, no como texto suelto */
+.prose blockquote { border-left: 2px solid rgba(145,132,217,.55);
+  background: rgba(145,132,217,.06); border-radius: 0 10px 10px 0;
+  padding: 9px 14px; margin: 12px 0; color: var(--n4); }
+.prose ul, .prose ol { padding-left: 20px; }
+.prose li { margin: 3px 0; }
 
 /* gráficas y acordeones -------------------------------------------------- */
-.plot, .plot > div, div[data-testid='plot'] { background: var(--ns) !important;
-  border-radius: 8px; }
-.label-wrap > span { color: var(--n4) !important; font-weight: 500 !important; }
+.plot, .plot > div, div[data-testid='plot'] { background: transparent !important;
+  border-radius: 12px; overflow: hidden; }
+.plot img, div[data-testid='plot'] img { border-radius: 12px; display: block; }
+.label-wrap { padding: 2px 2px !important; min-height: 0 !important; }
+.label-wrap > span { color: var(--n4) !important; font-weight: 600 !important;
+  font-size: 13px !important; letter-spacing: -.01em; }
+.label-wrap:hover > span { color: var(--nt) !important; }
+/* acordeón cerrado: una línea, no una banda vacía de 60 px */
+.block:has(> .label-wrap) { padding: 10px 14px !important; }
+
+/* Ritmo: los bloques respiran, pero es un panel de datos, no una landing.
+   El aire va en el hueco ENTRE piezas, no en padding interior gigante. */
+.gap, .form > .block { margin-bottom: 0 !important; }
+.tabitem > .column, .tabitem > div { gap: 12px !important; }
+.tabitem { padding-top: 14px !important; }
+
+/* Scrollbar: en un panel oscuro, la barra clara del sistema canta mucho */
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.10); border-radius: 999px;
+  border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.20);
+  border: 3px solid transparent; background-clip: content-box; }
+
 footer { display: none !important; }
 """
 

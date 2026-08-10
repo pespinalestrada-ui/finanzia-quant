@@ -30,10 +30,13 @@ from matplotlib.colors import LinearSegmentedColormap as _LSC
 
 class C:
     """Paleta Nocturne. Un acento; verde/rojo solo donde hay semántica."""
-    bg        = "#1b1d2a"   # fondo de la figura
-    panel     = "#20222f"   # fondo del área de datos
-    grid      = "#2c2f3c"
-    grid_soft = "#262935"
+    # el fondo de la figura debe casar con el de los bloques del panel: la
+    # gráfica va sin caja propia (.plot es transparente), así que si no coincide
+    # se ve la costura del PNG dentro de la tarjeta
+    bg        = "#1c1f2c"   # fondo de la figura = color medio del bloque
+    panel     = "#171a25"   # área de datos, un paso por DEBAJO: hunde el dato
+    grid      = "#2a2d3a"
+    grid_soft = "#232635"
     axis      = "#8b8fa3"
     dim       = "#6d7183"
     text      = "#e9e9ed"

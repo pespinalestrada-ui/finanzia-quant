@@ -221,6 +221,97 @@ body::after { content: ""; position: fixed; inset: 0; z-index: 2;
 @media (max-width: 1200px) { #topbar .disc { display: none; } }
 @keyframes nbpulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
 
+/* ---- barra superior v2: marca + ticker EDITABLE + tira de mercados ------ */
+#barra-sup { display: flex !important; flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important; gap: 10px !important;
+  padding: 8px 16px !important; margin-bottom: 10px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #1a1d2b, #131622) !important;
+  border: 1px solid var(--hair) !important;
+  box-shadow: var(--realce), 0 14px 34px -26px #000 !important; }
+/* los hijos de la barra NO son tarjetas: el bisel es de la barra entera, no de
+   cada pieza. Sin esto, Gradio pinta una caja por componente y la barra se
+   convierte en tres cajones. */
+#barra-sup > *, #barra-sup .block, #barra-sup .form {
+  background: transparent !important; border: 0 !important;
+  box-shadow: none !important; padding: 0 !important; margin: 0 !important;
+  min-width: 0 !important; flex: 0 0 auto !important; }
+/* los gr.HTML miden 100% por dentro aunque el flex diga 0 0 auto: hay que
+   pedirles el ancho del CONTENIDO o se comen la barra entera (medido: 1.433 px
+   cada uno dentro de una barra de 1.580). */
+#barra-sup #tb-marca, #barra-sup #tb-quote {
+  width: max-content !important; flex: 0 0 max-content !important;
+  overflow: visible !important; }
+#barra-sup #tb-marca { margin-right: 4px !important; }
+#barra-sup #tb-quote { margin-left: 2px !important; }
+#barra-sup #tb-ref { margin-left: auto !important; }
+/* el envoltorio de estado de Gradio no debe reservar alto dentro de la barra */
+#barra-sup .wrap.center { display: none !important; }
+
+/* el chip del valor: mismo lenguaje que los de mercado */
+#tb-quote .chip.tk { display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 13px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(130,113,224,.26), rgba(130,113,224,.13));
+  border: 1px solid rgba(130,113,224,.45); box-shadow: var(--realce);
+  font-size: 12.5px; white-space: nowrap; }
+#tb-quote .chip.tk b { font-weight: 700; letter-spacing: .04em; color: #efedff; }
+#tb-quote .chip.tk span { color: var(--nt); font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+#tb-quote .chip.tk .up { color: #4fbe8e !important; }
+#tb-quote .chip.tk .dn { color: #e0736d !important; }
+#tb-marca-in { display: flex; align-items: baseline; gap: 9px; white-space: nowrap; }
+#tb-marca-in b { font-weight: 700; font-size: 15.5px; letter-spacing: -.02em;
+  color: var(--nt); }
+#tb-marca-in i.sep { width: 1px; height: 12px; background: var(--n7);
+  display: inline-block; }
+#tb-marca-in span { font-size: 10.5px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--n6); font-weight: 600; }
+
+/* el campo del ticker vive DENTRO de la barra: mismo alto que los chips.
+   Necesita ancho explícito porque con scale=0 Gradio lo deja en 0 px. */
+#barra-sup #tb-input { width: 116px !important; flex: 0 0 116px !important; }
+#tb-input input, #tb-input textarea {
+  text-transform: uppercase; font-weight: 700 !important;
+  letter-spacing: .05em; text-align: center; font-size: 12.5px !important;
+  padding: 7px 10px !important; border-radius: 999px !important;
+  background: rgba(0,0,0,.38) !important; color: #efedff !important;
+  border: 1px solid rgba(130,113,224,.45) !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.4) !important; }
+#tb-input input:focus, #tb-input textarea:focus {
+  border-color: rgba(130,113,224,.85) !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.4),
+              0 0 0 3px rgba(130,113,224,.18) !important; }
+#barra-sup #tb-ref { width: 42px !important; flex: 0 0 42px !important; }
+#tb-ref button { padding: 7px 0 !important; font-size: 14px !important;
+  min-width: 0 !important; width: 42px !important; max-width: 42px !important; }
+
+/* tira de mercados: el punto dice si esa plaza está abierta AHORA */
+#tb-mkts { display: flex; align-items: center; gap: 7px; overflow-x: auto;
+  padding: 2px 0; scrollbar-width: none; }
+#tb-mkts::-webkit-scrollbar { display: none; }
+#tb-mkts .mkt { display: flex; align-items: center; gap: 6px; flex: none;
+  padding: 5px 11px; border-radius: 999px; background: rgba(255,255,255,.04);
+  border: 1px solid var(--hair); box-shadow: var(--realce);
+  font-size: 11.5px; white-space: nowrap;
+  transition: background .34s var(--eas), border-color .34s var(--eas); }
+#tb-mkts .mkt:hover { background: rgba(255,255,255,.08);
+  border-color: var(--hair-fuerte); }
+#tb-mkts .mkt .pt { width: 6px; height: 6px; border-radius: 50%;
+  background: var(--n7); flex: none; }
+#tb-mkts .mkt.on .pt { background: #3fa87c;
+  animation: nbpulse 2.6s ease-in-out infinite; }
+#tb-mkts .mkt .nom { color: var(--n5); font-weight: 600;
+  letter-spacing: .02em; }
+#tb-mkts .mkt .niv { color: var(--nt); font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; }
+#tb-mkts .mkt em { font-style: normal; font-weight: 600; font-size: 11px;
+  font-family: "JetBrains Mono", ui-monospace, monospace; }
+#tb-mkts .mkt em.up { color: #4fbe8e; }
+#tb-mkts .mkt em.dn { color: #e0736d; }
+#tb-mkts .vacio { color: var(--n6); font-size: 11.5px; }
+@media (max-width: 1000px) { #tb-mkts { max-width: 100%; } }
+
 /* pestañas: grupo con subrayado de acento, subpestañas como chips --------- */
 div[role='tablist'] { gap: 2px; border-bottom: 1px solid var(--hair);
   flex-wrap: wrap; }
@@ -388,6 +479,42 @@ tbody tr:last-child td { border-bottom: 0 !important; }
 
 footer { display: none !important; }
 """
+
+
+def MARCA_HTML(kicker="Mesa cuantitativa"):
+    """Bloque de marca, a la izquierda de la barra."""
+    return (f'<div id="tb-marca-in"><b>FinanzIA</b><i class="sep"></i>'
+            f'<span>{kicker}</span></div>')
+
+
+def CHIP_HTML(ticker="—", precio="—", cambio=""):
+    """Chip del valor que estás mirando. Se repinta al cambiar el ticker."""
+    txt = str(cambio).strip()
+    clase = "dn" if txt.startswith("-") or txt.startswith("−") else "up"
+    camb = f'<span class="{clase}">{cambio}</span>' if cambio else ""
+    return (f'<div class="chip tk"><b>{ticker}</b><span>{precio}</span>{camb}</div>')
+
+
+def MERCADOS_HTML(filas):
+    """Tira de mercados: punto de sesión, nombre, nivel y variación.
+
+    `filas` = lista de dicts con nombre, nivel, cambio, abierto, sesion.
+    El punto solo late si esa plaza está abierta AHORA: un indicador que miente
+    es peor que no tenerlo. Si un dato no llega, se queda en '—' y se dice."""
+    if not filas:
+        return '<div id="tb-mkts"><span class="vacio">Sin datos de mercado.</span></div>'
+    piezas = []
+    for f in filas:
+        ab = "on" if f.get("abierto") else "off"
+        camb = f.get("cambio")
+        cl = "dn" if (camb or "").strip().startswith(("-", "−")) else "up"
+        camb_html = f'<em class="{cl}">{camb}</em>' if camb else ""
+        piezas.append(
+            f'<div class="mkt {ab}" title="{f.get("sesion","")}">'
+            f'<i class="pt"></i>'
+            f'<span class="nom">{f.get("nombre","")}</span>'
+            f'<span class="niv">{f.get("nivel","—")}</span>{camb_html}</div>')
+    return '<div id="tb-mkts">' + "".join(piezas) + '</div>'
 
 
 def TOPBAR_HTML(ticker="AAPL", precio="—", cambio="", capital="10.000 €",

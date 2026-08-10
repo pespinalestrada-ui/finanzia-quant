@@ -1773,6 +1773,98 @@ def tab_veredicto_perfil(ticker, period, con_sentimiento, con_modelos, capital, 
                          registrar, False, nombre)
 
 
+# Plazas de la tira superior. `sesion` en hora LOCAL (Madrid), que es la del
+# usuario; convertir cada bolsa a su huso y de vuelta no aporta nada aquí y sí
+# mete errores en los cambios de horario.
+MERCADOS = [
+    {"tk": "^GSPC",     "nombre": "S&P 500",  "sesion": (15.5, 22.0), "dias": (0, 4)},
+    {"tk": "^IXIC",     "nombre": "Nasdaq",   "sesion": (15.5, 22.0), "dias": (0, 4)},
+    {"tk": "^IBEX",     "nombre": "IBEX 35",  "sesion": (9.0, 17.5),  "dias": (0, 4)},
+    {"tk": "^GDAXI",    "nombre": "DAX",      "sesion": (9.0, 17.5),  "dias": (0, 4)},
+    {"tk": "^FTSE",     "nombre": "FTSE 100", "sesion": (9.0, 17.5),  "dias": (0, 4)},
+    {"tk": "^N225",     "nombre": "Nikkei",   "sesion": (1.0, 7.0),   "dias": (0, 4)},
+    {"tk": "^VIX",      "nombre": "VIX",      "sesion": (15.5, 22.0), "dias": (0, 4)},
+    {"tk": "BTC-USD",   "nombre": "Bitcoin",  "sesion": None,         "dias": None},
+    {"tk": "EURUSD=X",  "nombre": "EUR/USD",  "sesion": (0.0, 23.99), "dias": (0, 4)},
+    {"tk": "GC=F",      "nombre": "Oro",      "sesion": (0.0, 23.99), "dias": (0, 4)},
+]
+
+_MKT_CACHE = {"ts": 0.0, "filas": []}
+_MKT_TTL = 600          # 10 min: son índices, no hace falta refrescar cada clic
+
+
+def _abierto_ahora(m, ahora):
+    """¿Está esa plaza abierta en este momento? `sesion=None` = 24/7 (cripto)."""
+    if m["sesion"] is None:
+        return True
+    if m["dias"] and not (m["dias"][0] <= ahora.weekday() <= m["dias"][1]):
+        return False
+    h = ahora.hour + ahora.minute / 60.0
+    return m["sesion"][0] <= h < m["sesion"][1]
+
+
+def _num(v, dec=2):
+    """Formato español: miles con punto, decimales con coma."""
+    s = f"{v:,.{dec}f}"
+    return s.replace(",", "·").replace(".", ",").replace("·", ".")
+
+
+def _mercados_filas(forzar=False):
+    """Nivel y variación de cada plaza. En paralelo: en serie son ~6 s."""
+    import time as _t
+    from datetime import datetime
+    from concurrent.futures import ThreadPoolExecutor
+    if not forzar and (_t.time() - _MKT_CACHE["ts"]) < _MKT_TTL and _MKT_CACHE["filas"]:
+        return _MKT_CACHE["filas"]
+    ahora = datetime.now()
+
+    def _uno(m):
+        fila = {"nombre": m["nombre"], "nivel": "—", "cambio": "",
+                "abierto": _abierto_ahora(m, ahora),
+                "sesion": ("24 h" if m["sesion"] is None else
+                           f"{m['sesion'][0]:g}–{m['sesion'][1]:g} h (hora peninsular)")}
+        try:
+            c = _dl(m["tk"], "5d")["Close"].astype(float).dropna()
+            if len(c):
+                dec = 4 if m["tk"] == "EURUSD=X" else (2 if c.iloc[-1] < 1000 else 0)
+                fila["nivel"] = _num(float(c.iloc[-1]), dec)
+                if len(c) > 1:
+                    fila["cambio"] = f"{(c.iloc[-1] / c.iloc[-2] - 1) * 100:+.2f}%".replace(".", ",")
+        except Exception:
+            pass                       # una plaza caída no puede tumbar la tira
+        return fila
+
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        filas = list(ex.map(_uno, MERCADOS))
+    _MKT_CACHE.update(ts=_t.time(), filas=filas)
+    return filas
+
+
+def _chip_ticker(ticker):
+    """Chip del valor que estás mirando, con su último precio real."""
+    from finanzia_theme import CHIP_HTML
+    tk = (ticker or "").strip().upper()
+    if not tk:
+        return CHIP_HTML("—", "—", "")
+    try:
+        c = _dl(tk, "5d")["Close"].astype(float).dropna()
+        if not len(c):
+            return CHIP_HTML(tk, "sin datos", "")
+        precio = _num(float(c.iloc[-1]), 2 if c.iloc[-1] < 1000 else 0)
+        camb = (f"{(c.iloc[-1] / c.iloc[-2] - 1) * 100:+.2f}%".replace(".", ",")
+                if len(c) > 1 else "")
+        return CHIP_HTML(tk, precio, camb)
+    except Exception:
+        return CHIP_HTML(tk, "sin datos", "")
+
+
+def tab_barra(ticker):
+    """Repinta el chip del ticker y la tira de mercados. Lo llama el Enter del
+    campo y el botón de refrescar."""
+    from finanzia_theme import MERCADOS_HTML
+    return _chip_ticker(ticker), MERCADOS_HTML(_mercados_filas(forzar=True))
+
+
 def _topbar_datos():
     """Datos REALES para la barra superior: si los mercados están abiertos ahora
     y el último precio del primer valor de la watchlist. Si algo falla, se queda
@@ -1808,9 +1900,21 @@ def build():
     from finanzia_theme import HEAD as _head, THEME as _theme, CSS as _css, TOPBAR_HTML
     with gr.Blocks(title="FinanzIA — Mesa cuantitativa", head=_head,
                    theme=_theme, css=_css) as app:
-        # barra superior de 46 px: marca, estado de mercado, ticker, capital y
-        # el disclaimer (sustituye al banner navy de 100 px)
-        gr.HTML(TOPBAR_HTML(**_topbar_datos()))
+        # Barra superior: marca + ticker EDITABLE + tira de mercados en vivo.
+        # El campo es un Textbox de verdad (no HTML), así que se puede escribir
+        # en él; el chip y la tira se repintan al pulsar Enter o el botón.
+        from finanzia_theme import MARCA_HTML, MERCADOS_HTML
+        _tk0 = _wl_load().split(",")[0].strip().upper()
+        with gr.Row(elem_id="barra-sup"):
+            gr.HTML(MARCA_HTML(), elem_id="tb-marca")
+            tkbar = gr.Textbox(value=_tk0, show_label=False, container=False,
+                               scale=0, max_lines=1, elem_id="tb-input",
+                               placeholder="TICKER")
+            chipbar = gr.HTML(_chip_ticker(_tk0), elem_id="tb-quote")
+            brf = gr.Button("↻", scale=0, elem_id="tb-ref", variant="secondary")
+        mktbar = gr.HTML(MERCADOS_HTML(_mercados_filas()), elem_id="tb-mktwrap")
+        tkbar.submit(tab_barra, [tkbar], [chipbar, mktbar])
+        brf.click(tab_barra, [tkbar], [chipbar, mktbar])
         WL = _wl_load()
         with gr.Accordion("💾 Mi watchlist (compartida por todas las pestañas)", open=False):
             with gr.Row():

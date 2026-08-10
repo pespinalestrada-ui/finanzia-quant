@@ -43,7 +43,7 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
-          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas", SUITE / "cobertura"]:
+          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas", SUITE / "cobertura", SUITE / "superficie_vol"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -1367,6 +1367,17 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return pd.DataFrame(), "**Error:** " + str(e)
 
 
+def tab_superficie(ticker, max_dias):
+    """Superficie de volatilidad implicita: sonrisa y estructura temporal."""
+    try:
+        import superficie_vol as SV
+        res = SV.superficie(ticker.strip().upper(), int(max_dias))
+        met = SV.metricas(res)
+        return SV._plot(res, met), met["tabla"], SV.explicar(res, met)
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_cobertura(ticker, acciones, suelo, techo, dias):
     """Poner un suelo a una posicion: put, collar o llevar menos."""
     try:
@@ -2157,7 +2168,7 @@ def build():
                     mdhm = gr.Markdown()
                     fighm = gr.Plot(show_label=False)
                     bhm.click(tab_hmm, [thm, nhm, phm], [fighm, mdhm])
-                with gr.Tab("🎯 Meta-lab"):
+                with gr.Tab("🎯 Meta"):
                     gr.Markdown("**¿Actuar o no sobre la señal?** Meta-labeling (López de Prado): un 2º "
                                 "modelo ML filtra las señales primarias malas (tendencia) → menos trades, "
                                 "mejor precisión. La probabilidad sirve para dimensionar. Tarda ~1-2 min.")
@@ -2221,7 +2232,7 @@ def build():
                     mdop = gr.Markdown()
                     tblop = gr.Dataframe(wrap=True)
                     bop.click(tab_opciones, [top, tipop, kop, dop, vop, rop], [tblop, mdop])
-                with gr.Tab("🔔 Colas gordas"):
+                with gr.Tab("🔔 Colas"):
                     gr.Markdown("**Cuánto miente la campana de Gauss con tus activos.** "
                                 "La curtosis mide el grosor de las colas: cuanto más alta, "
                                 "más días 'imposibles' que ocurren igualmente. El SPY tuvo "
@@ -2238,7 +2249,7 @@ def build():
                     tbco = gr.Dataframe(label="Curtosis y días extremos", wrap=True)
                     mdco = gr.Markdown()
                     bco.click(tab_colas, [tco, pco], [figco, tbco, mdco])
-                with gr.Tab("📉 Deriva vol."):
+                with gr.Tab("📉 Deriva"):
                     gr.Markdown("**Lo que la volatilidad se come cada año** (lema de Itô). "
                                 "La rentabilidad que se publica es la **media**; la que "
                                 "compones de verdad es la media **menos σ²/2**. Cuanto más se "
@@ -2259,6 +2270,23 @@ def build():
                     tbdv = gr.Dataframe(label="Resultado", wrap=True)
                     mddv = gr.Markdown()
                     bdv.click(tab_deriva_vol, [tdv, pdv, mdv_modo, advj], [figdv, tbdv, mddv])
+                with gr.Tab("🌐 Superficie"):
+                    gr.Markdown("**Qué precio le pone el mercado al miedo**, strike a strike y "
+                                "plazo a plazo. Si Black-Scholes fuera cierto, todas las "
+                                "opciones del mismo activo tendrían la misma volatilidad. No la "
+                                "tienen, y esa deformación es información: la **sonrisa** dice "
+                                "cuánto más cuesta protegerse que apostar al alza; la "
+                                "**estructura temporal** avisa cuando el susto es inmediato.")
+                    with gr.Row():
+                        tsv = gr.Textbox(value="SPY", label="Activo (solo EEUU tiene cadena)",
+                                         scale=3)
+                        dsv = gr.Slider(60, 500, value=400, step=20,
+                                        label="Mirar hasta (días al vencimiento)")
+                        bsv = gr.Button("Dibujar superficie", variant="primary")
+                    figsv = gr.Plot(show_label=False)
+                    tbsv = gr.Dataframe(label="Por vencimiento: ATM, alas y sesgo", wrap=True)
+                    mdsv = gr.Markdown()
+                    bsv.click(tab_superficie, [tsv, dsv], [figsv, tbsv, mdsv])
                 with gr.Tab("🛡️ Cobertura"):
                     gr.Markdown("**Poner un suelo a una posición, como una aerolínea con el "
                                 "queroseno.** Tres formas y lo que cuesta cada una: comprar "
@@ -2277,7 +2305,7 @@ def build():
                     tbcb = gr.Dataframe(label="Las cuatro opciones, comparadas", wrap=True)
                     mdcb = gr.Markdown()
                     bcb.click(tab_cobertura, [tcb, ncb, scb, kcb, dcb], [figcb, tbcb, mdcb])
-                with gr.Tab("⏳ OU óptimo"):
+                with gr.Tab("⏳ OU"):
                     gr.Markdown("**¿Cuándo cerrar exactamente?** Calibra el 'muelle' (Ornstein-Uhlenbeck) "
                                 "de un par y calcula el **umbral de salida óptimo** por acoplamiento suave "
                                 "(smooth-pasting), descontando el coste de operar. Además da tamaño y stop "

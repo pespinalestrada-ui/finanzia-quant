@@ -401,6 +401,19 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Antes de tocar una opción, mira Theta: si es alta, el tiempo juega en tu contra. Es el único apartado que trata derivados; el resto de la app son acciones.
 
+### 🌐 Superficie  `[Avanzado]`
+**Para qué sirve:** Qué precio le pone el mercado al miedo. Si la teoría fuera cierta, todas las opciones de una misma empresa tendrían la misma volatilidad. No la tienen, y en esa deformación hay información.
+
+**Cómo se usa:** Escribe un activo de EEUU (SPY, AAPL, QQQ...) y pulsa Dibujar superficie. Los activos europeos no tienen cadena de opciones en la fuente de datos.
+
+**Qué significa lo que ves:**
+- **La sonrisa** (izquierda): una curva por vencimiento. Sube mucho hacia la izquierda porque **protegerse siempre cuesta más** que apostar a la subida.
+- **El sesgo** en puntos: cuánto más caro es cubrir una caída del 10% que apostar a una subida del 10%. En bolsa siempre es positivo.
+- **Estructura temporal** (derecha): lo normal es que la volatilidad suba con el plazo. Si se INVIERTE (corto por encima de largo), el mercado está descontando un susto inmediato.
+- La línea gris es la volatilidad **realizada**: lo que el activo se ha movido de verdad. Si la implícita está por encima, vender opciones cobra prima; si está por debajo, la protección está barata.
+
+**👉 Qué hago con esto:** Míralo antes de comprar o vender opciones, y junto a 🛡️ Cobertura: el sesgo que sale aquí es exactamente lo que encarece la put protectora. Si la estructura se invierte, el mercado sabe algo a corto plazo.
+
 ### 🛡️ Cobertura  `[Intermedio]`
 **Para qué sirve:** Poner un SUELO a lo que puedes perder en una posición, que es lo que hace una aerolínea cuando compra el queroseno por adelantado. Te dice cuánto cuesta el seguro y si compensa.
 
@@ -414,7 +427,7 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Mira el **coste anualizado** de la put. Si sale por encima del 6-8%, protegerte todo el año se come la rentabilidad que esperas de la bolsa: el seguro sale más caro que el riesgo. Cubrirse tiene sentido cuando NO PUEDES permitirte la caída (tienes que vender pronto), no cuando crees que va a pasar.
 
-### 🔔 Colas gordas  `[Intermedio]`
+### 🔔 Colas  `[Intermedio]`
 **Para qué sirve:** Cuánto miente la campana de Gauss con tus activos. Casi toda la estadística financiera de manual supone que los días extremos son rarísimos. No lo son.
 
 **Cómo se usa:** Escribe hasta 3 activos y pulsa 'Medir colas'.
@@ -427,7 +440,7 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Es el porqué de media suite: el riesgo de cola se mide en 📉 EVT y no con la normal, el Sharpe lleva corrección por curtosis, y la resta teórica de 📉 Deriva vol. sale exagerada justo por esto. Si alguien te vende un riesgo calculado con la campana, ya sabes cuánto se queda corto.
 
-### 📉 Deriva vol.  `[Intermedio]`
+### 📉 Deriva  `[Intermedio]`
 **Para qué sirve:** Cuánta rentabilidad se te come la volatilidad cada año. La rentabilidad que se publica es la MEDIA; la que de verdad acumulas es más baja, y la diferencia crece muy rápido con lo que se mueve el activo.
 
 **Cómo se usa:** Escribe varios activos y pulsa Medir. El desplegable 'Qué medir' tiene tres modos: lo que se come la volatilidad, hasta dónde compensa apalancar, y qué te toca a TI (no a la media).
@@ -440,7 +453,7 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Es la razón matemática de que 🛞 Vol objetivo funcione: bajar la volatilidad no solo quita sustos, sube lo que acumulas. Y explica por qué un ETF x3 puede perder a largo plazo aunque el índice suba. Ojo: los apalancamientos que salen son OPTIMISTAS (no cuentan intereses ni comisiones).
 
-### ⏳ OU óptimo  `[Avanzado]`
+### ⏳ OU  `[Avanzado]`
 **Para qué sirve:** Para pares (dos activos que van de la mano): calcula el 'muelle' que los une y te dice el momento EXACTO de cerrar, con matemáticas en vez de a ojo.
 
 **Cómo se usa:** Escribe dos activos (ej. KO y PEP, o EWA y EWC), tu capital y el coste de operar. Pulsa Calibrar.

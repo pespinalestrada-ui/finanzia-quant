@@ -404,12 +404,13 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 ### 📉 Deriva vol.  `[Intermedio]`
 **Para qué sirve:** Cuánta rentabilidad se te come la volatilidad cada año. La rentabilidad que se publica es la MEDIA; la que de verdad acumulas es más baja, y la diferencia crece muy rápido con lo que se mueve el activo.
 
-**Cómo se usa:** Escribe varios activos separados por comas y pulsa Medir. Marca la casilla para ver, además, hasta cuánto apalancamiento aguanta el primero.
+**Cómo se usa:** Escribe varios activos y pulsa Medir. El desplegable 'Qué medir' tiene tres modos: lo que se come la volatilidad, hasta dónde compensa apalancar, y qué te toca a TI (no a la media).
 
 **Qué significa lo que ves:**
 - Dos barras por activo: la **media anual** (lo que se publica) y el **CAGR real** (lo que te llevas). Encima, los puntos que se pierden.
 - SPY se deja 0,6 puntos al año; TQQQ se deja **15,9**. La diferencia entre ambos no es la rentabilidad: es la volatilidad.
 - La curva de apalancamiento tiene forma de campana: hay un punto óptimo y, pasado otro, apalancar te deja PEOR que no apalancar.
+- **¿Qué me toca a MÍ?**: simula miles de inversores con el mismo activo y las mismas reglas. Solo ~4 de cada 10 llegan a la rentabilidad 'media' que se anuncia; al de en medio le toca menos. La media la levantan unos pocos caminos afortunados, y tú vives uno solo.
 
 **👉 Qué hago con esto:** Es la razón matemática de que 🛞 Vol objetivo funcione: bajar la volatilidad no solo quita sustos, sube lo que acumulas. Y explica por qué un ETF x3 puede perder a largo plazo aunque el índice suba. Ojo: los apalancamientos que salen son OPTIMISTAS (no cuentan intereses ni comisiones).
 

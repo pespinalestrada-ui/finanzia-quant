@@ -1367,13 +1367,27 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return pd.DataFrame(), "**Error:** " + str(e)
 
 
-def tab_deriva_vol(txt, period, apalancado):
-    """Lema de Ito: cuanta rentabilidad compuesta se come la volatilidad."""
+def tab_deriva_vol(txt, period, modo, anios):
+    """Lema de Ito: lo que la volatilidad se come, y lo que le toca a UNO."""
     try:
         import deriva_vol as DV
         tks = [x.strip().upper() for x in (txt or "").replace(",", " ").split() if x.strip()]
         if not tks:
             return _err_fig("Escribe al menos un activo."), pd.DataFrame(), ""
+
+        # modo 3: qué le pasa al inversor normal (el del "solo 4 de cada 10")
+        if str(modo).startswith("¿Qué me toca"):
+            d = DV.destino_probable(tks[0], anios=int(anios), period=period)
+            filas = [{"Percentil": f"{p}%", "Rentabilidad anual conseguida": f"{v*100:+.1f}%"}
+                     for p, v in sorted(d["pct"].items())]
+            filas.append({"Percentil": "MEDIA anunciada",
+                          "Rentabilidad anual conseguida": f"{d['anunciada']*100:+.1f}%"})
+            md = (DV.explicar_destino(d) + "\n\n> Es la otra cara del mismo lema de Itô: "
+                  "la media aritmética la levantan unos pocos caminos, y la mediana —lo que "
+                  "de verdad le toca a una persona— se queda por debajo. Cuanta más "
+                  "volatilidad, mayor la distancia.")
+            return DV._plot_destino(d), pd.DataFrame(filas), md
+
         tb = DV.tabla(tks, period)
         datos = []
         for tk in tks:
@@ -1384,7 +1398,7 @@ def tab_deriva_vol(txt, period, apalancado):
         if not datos:
             return _err_fig("Sin histórico suficiente."), tb, "Sin datos."
         partes = [DV.explicar(d) for d in datos]
-        if apalancado:
+        if str(modo).startswith("Apalancamiento"):
             c = DV.curva_apalancamiento(tks[0], period)
             fig = DV._plot(datos, curva=c)
             partes.insert(0, DV.explicar_apalancamiento(c))
@@ -2180,15 +2194,19 @@ def build():
                                 "decaen y por qué bajar volatilidad hace ganar más compuesto.")
                     with gr.Row():
                         tdv = gr.Textbox(value="SPY, QQQ, TQQQ, BTC-USD",
-                                         label="Activos a comparar", scale=4)
-                        pdv = gr.Dropdown(["5y", "10y", "max"], value="10y", label="Histórico")
-                        adv = gr.Checkbox(value=False,
-                                          label="Curva de apalancamiento del primero")
+                                         label="Activos a comparar", scale=3)
+                        pdv = gr.Dropdown(["5y", "10y", "20y", "max"], value="10y", label="Histórico")
+                        mdv_modo = gr.Dropdown(
+                            ["Lo que se come la volatilidad",
+                             "Apalancamiento: hasta dónde compensa",
+                             "¿Qué me toca a MÍ? (no a la media)"],
+                            value="Lo que se come la volatilidad", label="Qué medir", scale=2)
+                        advj = gr.Slider(3, 20, value=10, step=1, label="Años (solo modo 3)")
                         bdv = gr.Button("Medir", variant="primary")
                     figdv = gr.Plot(show_label=False)
-                    tbdv = gr.Dataframe(label="Media vs compuesto", wrap=True)
+                    tbdv = gr.Dataframe(label="Resultado", wrap=True)
                     mddv = gr.Markdown()
-                    bdv.click(tab_deriva_vol, [tdv, pdv, adv], [figdv, tbdv, mddv])
+                    bdv.click(tab_deriva_vol, [tdv, pdv, mdv_modo, advj], [figdv, tbdv, mddv])
                 with gr.Tab("⏳ OU óptimo"):
                     gr.Markdown("**¿Cuándo cerrar exactamente?** Calibra el 'muelle' (Ornstein-Uhlenbeck) "
                                 "de un par y calcula el **umbral de salida óptimo** por acoplamiento suave "

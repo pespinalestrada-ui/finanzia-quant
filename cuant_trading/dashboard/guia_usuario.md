@@ -401,6 +401,19 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Antes de tocar una opción, mira Theta: si es alta, el tiempo juega en tu contra. Es el único apartado que trata derivados; el resto de la app son acciones.
 
+### 🔔 Colas gordas  `[Intermedio]`
+**Para qué sirve:** Cuánto miente la campana de Gauss con tus activos. Casi toda la estadística financiera de manual supone que los días extremos son rarísimos. No lo son.
+
+**Cómo se usa:** Escribe hasta 3 activos y pulsa 'Medir colas'.
+
+**Qué significa lo que ves:**
+- La **curtosis en exceso** mide el grosor de las colas: una campana normal vale 0. El SPY vale casi 15.
+- La gráfica está en escala logarítmica a propósito: es la única forma de ver las colas. Fíjate en cómo la línea dorada (la campana) se desploma a cero mientras las barras siguen hasta ±10σ.
+- **Días de más de 4σ**: el SPY tuvo 38 en 20 años; la campana predecía 0,32. Es 119 veces más.
+- El **peor día** en sigmas, y cada cuánto tocaría si el mundo fuera normal. Suelen salir cifras absurdas: más años que la edad del universo.
+
+**👉 Qué hago con esto:** Es el porqué de media suite: el riesgo de cola se mide en 📉 EVT y no con la normal, el Sharpe lleva corrección por curtosis, y la resta teórica de 📉 Deriva vol. sale exagerada justo por esto. Si alguien te vende un riesgo calculado con la campana, ya sabes cuánto se queda corto.
+
 ### 📉 Deriva vol.  `[Intermedio]`
 **Para qué sirve:** Cuánta rentabilidad se te come la volatilidad cada año. La rentabilidad que se publica es la MEDIA; la que de verdad acumulas es más baja, y la diferencia crece muy rápido con lo que se mueve el activo.
 

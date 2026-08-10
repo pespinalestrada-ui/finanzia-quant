@@ -43,7 +43,7 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
-          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol"]:
+          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -1367,6 +1367,29 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return pd.DataFrame(), "**Error:** " + str(e)
 
 
+def tab_colas(txt, period):
+    """Curtosis y colas gordas: cuantas veces fallo el modelo normal."""
+    try:
+        import colas as CO
+        tks = [x.strip().upper() for x in (txt or "").replace(",", " ").split() if x.strip()]
+        if not tks:
+            return _err_fig("Escribe al menos un activo."), pd.DataFrame(), ""
+        tks = tks[:3]                      # 3 paneles caben; mas no se leen
+        tb = CO.tabla(tks, period)
+        datos = []
+        for tk in tks:
+            try:
+                datos.append(CO.medir(tk, period))
+            except Exception:
+                pass
+        if not datos:
+            return _err_fig("Sin histórico suficiente."), tb, "Sin datos."
+        md = "\n\n".join(CO.explicar(d) for d in datos)
+        return CO._plot(datos), tb, md
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), "**Error:** " + str(e)
+
+
 def tab_deriva_vol(txt, period, modo, anios):
     """Lema de Ito: lo que la volatilidad se come, y lo que le toca a UNO."""
     try:
@@ -2186,6 +2209,23 @@ def build():
                     mdop = gr.Markdown()
                     tblop = gr.Dataframe(wrap=True)
                     bop.click(tab_opciones, [top, tipop, kop, dop, vop, rop], [tblop, mdop])
+                with gr.Tab("🔔 Colas gordas"):
+                    gr.Markdown("**Cuánto miente la campana de Gauss con tus activos.** "
+                                "La curtosis mide el grosor de las colas: cuanto más alta, "
+                                "más días 'imposibles' que ocurren igualmente. El SPY tuvo "
+                                "**38 días de más de 4σ** en 20 años donde la normal predecía "
+                                "**0,32**. Es la razón de que aquí el riesgo se mida con EVT "
+                                "y el Sharpe lleve corrección por curtosis.")
+                    with gr.Row():
+                        tco = gr.Textbox(value="SPY, BTC-USD, KO",
+                                         label="Activos (hasta 3)", scale=4)
+                        pco = gr.Dropdown(["5y", "10y", "20y", "max"], value="20y",
+                                          label="Histórico")
+                        bco = gr.Button("Medir colas", variant="primary")
+                    figco = gr.Plot(show_label=False)
+                    tbco = gr.Dataframe(label="Curtosis y días extremos", wrap=True)
+                    mdco = gr.Markdown()
+                    bco.click(tab_colas, [tco, pco], [figco, tbco, mdco])
                 with gr.Tab("📉 Deriva vol."):
                     gr.Markdown("**Lo que la volatilidad se come cada año** (lema de Itô). "
                                 "La rentabilidad que se publica es la **media**; la que "

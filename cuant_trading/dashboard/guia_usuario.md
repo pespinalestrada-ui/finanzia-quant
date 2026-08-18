@@ -291,6 +291,19 @@ Cada pantalla lleva una etiqueta: **[Básico]** empieza por estas · **[Intermed
 
 **👉 Qué hago con esto:** Lo que busca no es ganar más, sino **ganar parecido pasando mucho menos miedo**. Si la peor caída baja a la mitad y el Sharpe sube, está haciendo su trabajo. Practícalo en paper antes de aplicarlo con dinero.
 
+### 🎯 Marcador  `[Básico]`
+**Para qué sirve:** La pantalla que dice si el sistema acierta DE VERDAD. Cada Veredicto y cada Forecast quedan apuntados ANTES de saber qué pasa, y luego se comprueba a 7, 30 y 90 días si se cumplieron.
+
+**Cómo se usa:** Elige 'En vivo' (tus consultas) o 'Reconstruido' (llamadas históricas) y pulsa Ver marcador. El de en vivo se llena solo según vayas usando el panel.
+
+**Qué significa lo que ves:**
+- Dos barras por plazo: la gris es lo que hace el activo **por sí solo**, la violeta lo que acierta el sistema. **Si son iguales, el sistema no aporta nada.**
+- Lo que importa es la diferencia en puntos que sale encima, no el porcentaje de acierto. Acertar el 54% en algo que sube el 54% de las veces es habilidad CERO.
+- Con menos de 30 llamadas no da porcentaje: dice 'muestra insuficiente'. Un 70% sobre 7 llamadas es ruido puro.
+- El 'Reconstruido' es solo el núcleo técnico (medias, RSI, MACD...), NO el Veredicto completo: los fundamentales no se pueden reconstruir sin mirar al futuro.
+
+**👉 Qué hago con esto:** Es el juez de todo lo demás. Si dice que no hay ventaja, hazle caso: úsalo para operar MENOS, no para buscar otra configuración. Ojo al aviso del periodo: en un tramo muy alcista, cualquier sistema que se salga pierde contra estar dentro.
+
 ### 🧪 CPCV  `[Avanzado]`
 **Para qué sirve:** La validación más dura de todas: parte la historia en bloques y prueba la estrategia en MUCHAS combinaciones distintas fuera de muestra, con cortafuegos para que el futuro no se cuele.
 

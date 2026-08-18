@@ -43,7 +43,7 @@ for p in [HERE, PROJ, PROJ / "app", SUITE / "indicators", SUITE / "screener",
           SUITE / "kalman_hedge", SUITE / "transfer_entropy", SUITE / "rebalance",
           SUITE / "informe", SUITE / "options_greeks", SUITE / "ou_optimal",
           SUITE / "cpcv", SUITE / "portfolio_lab", SUITE / "voltarget",
-          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas", SUITE / "cobertura", SUITE / "superficie_vol"]:
+          SUITE / "kpis", SUITE / "veredicto_tune", SUITE / "deriva_vol", SUITE / "colas", SUITE / "cobertura", SUITE / "superficie_vol", SUITE / "marcador"]:
     sys.path.insert(0, str(p))
 
 # tema Nocturne: al importarlo aplica las rcParams a TODAS las figuras del panel
@@ -127,6 +127,15 @@ def tab_forecast(ticker, period, motor="Prophet (rápido)"):
             return fig, tabla, md
         fig, tabla, informe, meta = forecast_tool.forecast(ticker, period=period)
         head = f"**{ticker.upper()}** · {meta['n_sesiones']} sesiones · cierre {meta['precio_actual']:.3f}"
+        # el forecast tambien queda apuntado: su senal es el signo de la variacion
+        # esperada a 90 dias, con umbral de +-1% para no llamar senal al ruido
+        try:
+            _v90 = _var90_de_tabla(tabla)
+            _apuntar(ticker, "COMPRAR" if _v90 > 1 else "VENDER" if _v90 < -1 else "MANTENER",
+                     score=round(_v90 / 100.0, 4), precio=float(meta["precio_actual"]),
+                     fuente="forecast", var_esperada=round(_v90, 2))
+        except Exception:
+            pass
         return fig, tabla, head + "\n\n" + informe
     except Exception as e:
         return _err_fig(f"Error: {e}"), pd.DataFrame(), f"**Error:** {e}"
@@ -598,6 +607,10 @@ def tab_veredicto(ticker, period, con_sentimiento, con_modelos=False, capital=10
                 and verd != "MANTENER" and abs(total) < 0.45):
             notas_modelos += (f"\n\n> ⚠️ Mercado lateral (Hurst={hurst_v:.2f}, ADX={adx_v:.0f}<20): "
                               f"señal {verd} MENOS fiable — usa tamaño reducido.")
+
+        # queda apuntado para el marcador ANTES de saber que pasa
+        _apuntar(ticker, verd, score=round(float(total), 4), confianza=conf,
+                 precio=px, fuente="veredicto")
 
         # Un perfil que no aguanta fuera de su universo tiene que decirlo cada vez
         # que se usa, no solo cuando se elige: si no, se olvida.
@@ -1372,6 +1385,46 @@ def tab_voltarget_robustez(ticker, period, coste, banda, cash):
         return df, md
     except Exception as e:
         return pd.DataFrame(), "**Error:** " + str(e)
+
+
+def _apuntar(ticker, senal, score=None, confianza=None, precio=None,
+             fuente="veredicto", var_esperada=None):
+    """Deja constancia de la llamada para el marcador. Best-effort a propósito:
+    si falla el registro, el veredicto se devuelve igual. Medir no puede romper
+    lo que se mide."""
+    try:
+        import marcador as MC
+        MC.registrar(ticker, senal, score=score, confianza=confianza,
+                     precio_0=precio, fuente=fuente, var_esperada=var_esperada)
+    except Exception:
+        pass
+
+
+def tab_marcador(origen):
+    """¿Se cumplió lo que dijo el sistema? Marcador contra la tasa base."""
+    try:
+        import marcador as MC
+        og = "reconstruido" if str(origen).startswith("Reconstruido") else "vivo"
+        MC.resolver()
+        res = MC.marcador(origen=og)
+        etiqueta = ("Reconstruido · núcleo técnico" if og == "reconstruido"
+                    else "En vivo · Veredicto completo")
+        md = MC.explicar(res, etiqueta)
+        if og == "reconstruido":
+            md += ("\n\n> ⚠️ Esto **no es el Veredicto completo**. `score_historico` solo "
+                   "reconstruye los pilares que salen del precio (tendencia, ADX, "
+                   "osciladores, MACD, momentum, OBV). El forecast de Prophet habría que "
+                   "reentrenarlo en cada fecha, y los factores y el ROIC **no se pueden "
+                   "reconstruir honestamente**: yfinance solo da los fundamentales de HOY, "
+                   "y usarlos para 2024 sería mirar al futuro. Por eso va aparte y nunca "
+                   "se suma al marcador en vivo.")
+        else:
+            md += ("\n\n> Cada vez que sacas un ★ Veredicto o un 1 · Forecast queda "
+                   "apuntado aquí **antes** de saber qué pasa. Una llamada por valor y "
+                   "día: abrir el mismo cinco veces cuenta una.")
+        return MC._plot(res, etiqueta), MC.tabla(res), md
+    except Exception as e:
+        return _err_fig("Error: " + str(e)), pd.DataFrame(), "**Error:** " + str(e)
 
 
 def tab_superficie(ticker, max_dias):
@@ -2190,6 +2243,23 @@ def build():
                         bvb = gr.Button("Validar", variant="primary")
                     mdvb = gr.Markdown()
                     bvb.click(tab_validar_veredicto, [tvb, hvb, trvb], [mdvb])
+                with gr.Tab("🎯 Marcador"):
+                    gr.Markdown("**¿Se cumplió lo que dijo el sistema?** Cada Veredicto y "
+                                "cada Forecast quedan apuntados **antes** de saber el "
+                                "resultado, y aquí se comprueban a 7, 30 y 90 días. Es la "
+                                "única medición del panel que **no se puede sobreajustar**. "
+                                "Lo que cuenta no es el acierto, es la **ventaja sobre la "
+                                "tasa base**: acertar el 54% en algo que sube el 54% de las "
+                                "veces es habilidad cero.")
+                    with gr.Row():
+                        omc = gr.Radio(["En vivo", "Reconstruido (núcleo técnico)"],
+                                       value="Reconstruido (núcleo técnico)",
+                                       label="Qué marcador", scale=3)
+                        bmc = gr.Button("Ver marcador", variant="primary")
+                    figmc = gr.Plot(show_label=False)
+                    tbmc = gr.Dataframe(label="Por plazo", wrap=True)
+                    mdmc = gr.Markdown()
+                    bmc.click(tab_marcador, [omc], [figmc, tbmc, mdmc])
                 with gr.Tab("🧪 CPCV"):
                     gr.Markdown("**La validación más exigente**: divide la historia en bloques y prueba en "
                                 "MUCHAS combinaciones fuera de muestra, con **purgado y embargo** (el futuro "

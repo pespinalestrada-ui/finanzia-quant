@@ -53,6 +53,17 @@ def main():
                f"· PBO {res.get('pbo', float('nan'))*100:.0f}% "
                f"· listón por azar {res.get('sr0', float('nan')):+.3f}")
 
+        # el marcador resuelve aqui lo que haya vencido: asi no depende de que
+        # abras la pestaña para ponerse al dia
+        try:
+            sys.path.insert(0, str(AQUI.parent / "marcador"))
+            import marcador as MC
+            n_res = MC.resolver()
+            if n_res:
+                apunta(f"[{sello}] marcador: {n_res} plazos resueltos")
+        except Exception as e:
+            apunta(f"[{sello}] marcador no disponible: {str(e)[:60]}")
+
         # los perfiles se rehacen para que el desplegable del panel no se quede viejo
         perfiles = VT.construir_perfiles(top=5)
         validas = [p for p in perfiles if p["etiqueta"].startswith("✅") and p.get("busqueda")]
